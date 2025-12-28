@@ -52,7 +52,7 @@ const App = () => {
   const lettersStruckCount = Math.min(completedLines.size, 5);
   const isWinner = lettersStruckCount >= 5;
 
-  // Optimized background style using longhand backgroundImage to avoid shorthand conflicts
+  // Background visibility tweaked for light mode (more saturated pastels)
   const dynamicBgStyle = useMemo(() => {
     const p = lettersStruckCount;
     if (theme === 'dark') {
@@ -65,10 +65,10 @@ const App = () => {
       return { backgroundImage: `linear-gradient(-45deg, ${colors.join(', ')})` };
     } else {
       const colors = [
-        '#f8fafc',
-        p > 1 ? '#fff1f2' : '#f1f5f9',
-        p > 3 ? '#fff7ed' : '#f8fafc',
-        p === 5 ? '#ecfdf5' : '#f1f5f9'
+        '#e2e8f0', // Deeper slate
+        p > 1 ? '#fecaca' : '#f1f5f9', // More visible red
+        p > 3 ? '#fde68a' : '#e2e8f0', // More visible amber
+        p === 5 ? '#bbf7d0' : '#f1f5f9'  // More visible green
       ];
       return { backgroundImage: `linear-gradient(-45deg, ${colors.join(', ')})` };
     }
@@ -82,20 +82,22 @@ const App = () => {
       accent: 'from-violet-600 to-indigo-700',
       button: 'bg-indigo-600 hover:bg-indigo-500',
       gridItem: 'bg-slate-800/80 border-white/5 text-white',
-      gridMarked: 'bg-gradient-to-br from-violet-500 to-fuchsia-600 border-violet-400 shadow-lg shadow-violet-500/20',
-      letterActive: 'bg-amber-400 text-slate-900 border-amber-200',
-      letterInactive: 'bg-white/5 text-slate-500'
+      gridMarked: 'bg-gradient-to-br from-violet-600 to-fuchsia-700 border-violet-400 shadow-lg shadow-violet-500/30 text-white drop-shadow-md',
+      // High contrast for BINGO letters
+      letterActive: 'bg-yellow-400 text-black border-yellow-200 font-black',
+      letterInactive: 'bg-indigo-950/50 text-indigo-200/40 border-indigo-500/20'
     },
     light: {
-      card: 'bg-white/80',
+      card: 'bg-white/90',
       text: 'text-slate-900',
       subtext: 'text-slate-500',
       accent: 'from-rose-500 to-orange-500',
       button: 'bg-rose-600 hover:bg-rose-500',
       gridItem: 'bg-slate-50 border-slate-200 text-slate-800',
-      gridMarked: 'bg-gradient-to-br from-rose-500 to-orange-500 border-rose-300 shadow-lg shadow-rose-500/20',
-      letterActive: 'bg-rose-600 text-white border-rose-400',
-      letterInactive: 'bg-black/5 text-slate-400'
+      gridMarked: 'bg-gradient-to-br from-rose-600 to-orange-600 border-rose-400 shadow-lg shadow-rose-500/30 text-white drop-shadow-md',
+      // High contrast for BINGO letters
+      letterActive: 'bg-rose-600 text-white border-rose-400 font-black shadow-rose-200',
+      letterInactive: 'bg-slate-200/50 text-slate-400 border-slate-300'
     }
   }[theme];
 
@@ -174,9 +176,9 @@ const App = () => {
   return (
     <div className="min-h-screen flex flex-col items-center p-4 md:p-8 font-sans overflow-y-auto relative transition-colors duration-500">
       
-      {/* Optimized Background using non-shorthand property to avoid React warnings */}
+      {/* Dynamic Background with fixed property to avoid React warnings */}
       <div 
-        className="fixed inset-0 z-[-1] transition-all duration-1000 animate-gradient-shift" 
+        className="fixed inset-0 z-[-1] transition-all duration-1000 animate-gradient-shift will-change-transform" 
         style={{ 
           backgroundImage: dynamicBgStyle.backgroundImage, 
           backgroundSize: '400% 400%' 
@@ -204,12 +206,12 @@ const App = () => {
       <div className={`relative z-10 max-w-md w-full ${colors.card} rounded-[3rem] shadow-2xl overflow-hidden transition-all duration-300 border border-white/10 ${isWinner ? 'scale-95 opacity-50' : ''}`}>
         
         <div className={`bg-gradient-to-br ${colors.accent} p-8 text-center relative`}>
-          <h1 className="text-4xl font-black tracking-[0.2em] mb-8 text-white drop-shadow-lg">BINGO BOT</h1>
+          <h1 className="text-4xl font-black tracking-[0.2em] mb-8 text-white drop-shadow-lg italic">BINGO BOT</h1>
           <div className="flex justify-between gap-2.5">
             {BINGO_LETTERS.map((letter, idx) => (
               <div 
                 key={letter} 
-                className={`w-12 h-12 rounded-2xl flex items-center justify-center text-xl font-black transition-all border-2 ${idx < lettersStruckCount ? colors.letterActive : colors.letterInactive}`}
+                className={`w-12 h-12 rounded-2xl flex items-center justify-center text-xl transition-all border-2 ${idx < lettersStruckCount ? colors.letterActive : colors.letterInactive}`}
               >
                 {idx < lettersStruckCount ? '✓' : letter}
               </div>
@@ -247,7 +249,7 @@ const App = () => {
                         setupMode === 'random' 
                           ? colors.gridItem + ' opacity-50' 
                           : errors[rIdx][cIdx] && cell !== '' 
-                            ? 'bg-red-500/10 border-red-500 text-red-500' 
+                            ? 'bg-red-500/10 border-red-500 text-red-600 font-black' 
                             : colors.gridItem + ' focus:border-indigo-500'
                       }`} 
                       placeholder="•" 
@@ -270,7 +272,7 @@ const App = () => {
                   <button 
                     key={`${rIdx}-${cIdx}`} 
                     onClick={() => toggleMark(rIdx, cIdx)} 
-                    className={`relative aspect-square rounded-2xl text-xl font-black transition-all border-2 ${marked[rIdx][cIdx] ? colors.gridMarked + ' text-white scale-90 shadow-inner' : colors.gridItem}`}
+                    className={`relative aspect-square rounded-2xl text-2xl font-black transition-all border-2 ${marked[rIdx][cIdx] ? `${colors.gridMarked} scale-90 shadow-inner` : colors.gridItem}`}
                   >
                     {cell}
                     {marked[rIdx][cIdx] && (

@@ -86,8 +86,12 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect, useCallback, useMemo } = React;
+        const { useState, useEffect, useCallback, useMemo, useRef } = React;
         const BINGO_LETTERS = ['B', 'I', 'N', 'G', 'O'];
+        
+        // Placeholder music URL (Royalty Free or Public Domain example)
+        // You can replace this with any direct MP3 link
+        const MUSIC_URL = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3";
 
         // --- Components ---
 
@@ -122,9 +126,38 @@
             const [board, setBoard] = useState(Array(5).fill(null).map(() => Array(5).fill('')));
             const [marked, setMarked] = useState(Array(5).fill(null).map(() => Array(5).fill(false)));
             const [completedLines, setCompletedLines] = useState(new Set());
+            const [isMusicPlaying, setIsMusicPlaying] = useState(false);
+
+            const audioRef = useRef(null);
 
             const lettersStruckCount = Math.min(completedLines.size, 5);
             const isWinner = lettersStruckCount >= 5;
+
+            // --- Audio Logic ---
+            useEffect(() => {
+                audioRef.current = new Audio(MUSIC_URL);
+                audioRef.current.loop = true;
+                audioRef.current.volume = 0.4; // 40% volume
+                
+                return () => {
+                    if (audioRef.current) {
+                        audioRef.current.pause();
+                        audioRef.current = null;
+                    }
+                };
+            }, []);
+
+            useEffect(() => {
+                if (audioRef.current) {
+                    if (isMusicPlaying) {
+                        audioRef.current.play().catch(e => console.log("Audio play failed (user interaction required first):", e));
+                    } else {
+                        audioRef.current.pause();
+                    }
+                }
+            }, [isMusicPlaying]);
+
+            const toggleMusic = () => setIsMusicPlaying(!isMusicPlaying);
 
             // --- Theme & Style Logic ---
 
@@ -253,7 +286,15 @@
                     className="min-h-screen flex flex-col items-center p-4 md:p-8 animate-gradient-bg theme-transition relative"
                     style={{ backgroundImage: themeStyles.bgGradient }}
                 >
-                    {/* Theme Toggle */}
+                    {/* Music Toggle (Top Left) */}
+                    <button 
+                        onClick={toggleMusic}
+                        className={`fixed top-4 left-4 z-50 px-4 py-2 rounded-full font-bold text-sm shadow-lg transition-transform active:scale-95 ${theme === 'dark' ? 'bg-slate-800 text-purple-400' : 'bg-white text-indigo-500'}`}
+                    >
+                        {isMusicPlaying ? '🎵 ON' : '🔇 OFF'}
+                    </button>
+
+                    {/* Theme Toggle (Top Right) */}
                     <button 
                         onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}
                         className={`fixed top-4 right-4 z-50 px-4 py-2 rounded-full font-bold text-sm shadow-lg transition-transform active:scale-95 ${theme === 'dark' ? 'bg-slate-800 text-yellow-400' : 'bg-white text-rose-500'}`}

@@ -1,330 +1,376 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-
-const BINGO_LETTERS = ['B', 'I', 'N', 'G', 'O'];
-
-const Confetti = () => {
-  const pieces = useMemo(() => Array.from({ length: 30 }).map((_, i) => ({
-    id: i,
-    left: Math.random() * 100 + '%',
-    delay: Math.random() * 3 + 's',
-    color: ['#f43f5e', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6'][Math.floor(Math.random() * 5)],
-    size: Math.random() * 6 + 4 + 'px'
-  })), []);
-
-  return (
-    <>
-      {pieces.map(p => (
-        <div 
-          key={p.id} 
-          className="absolute z-[101] pointer-events-none animate-confetti-fall" 
-          style={{ 
-            left: p.left, 
-            animationDelay: p.delay, 
-            backgroundColor: p.color,
-            width: p.size,
-            height: p.size,
-            borderRadius: '2px',
-            top: '-10px'
-          }} 
-        />
-      ))}
-      <style>{`
-        @keyframes confettiFall {
-          0% { transform: translate3d(0, -10vh, 0) rotate(0deg); opacity: 1; }
-          100% { transform: translate3d(0, 110vh, 0) rotate(360deg); opacity: 0; }
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bingo Buddy</title>
+    
+    <!-- 1. Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- 2. Load React & ReactDOM -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+    
+    <!-- 3. Load Babel (to compile JSX in the browser) -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <style>
+        body { 
+            -webkit-font-smoothing: antialiased; 
+            margin: 0; 
+            padding: 0; 
+            overflow-x: hidden; 
+            font-family: system-ui, -apple-system, sans-serif;
         }
-        .animate-confetti-fall {
-          animation: confettiFall 3s linear infinite;
-        }
-      `}</style>
-    </>
-  );
-};
-
-const App = () => {
-  const [gameState, setGameState] = useState('setup');
-  const [setupMode, setSetupMode] = useState('random');
-  const [theme, setTheme] = useState('dark');
-  const [board, setBoard] = useState(Array(5).fill(null).map(() => Array(5).fill('')));
-  const [marked, setMarked] = useState(Array(5).fill(null).map(() => Array(5).fill(false)));
-  const [completedLines, setCompletedLines] = useState(new Set());
-
-  const lettersStruckCount = Math.min(completedLines.size, 5);
-  const isWinner = lettersStruckCount >= 5;
-
-  // Background visibility tweaked for light mode (more saturated pastels)
-  const dynamicBgStyle = useMemo(() => {
-    const p = lettersStruckCount;
-    if (theme === 'dark') {
-      const colors = [
-        '#020617',
-        p > 1 ? '#1e1b4b' : '#0f172a', 
-        p > 3 ? '#312e81' : '#1e1b4b',
-        p === 5 ? '#4c1d95' : '#020617'
-      ];
-      return { backgroundImage: `linear-gradient(-45deg, ${colors.join(', ')})` };
-    } else {
-      const colors = [
-        '#e2e8f0', // Deeper slate
-        p > 1 ? '#fecaca' : '#f1f5f9', // More visible red
-        p > 3 ? '#fde68a' : '#e2e8f0', // More visible amber
-        p === 5 ? '#bbf7d0' : '#f1f5f9'  // More visible green
-      ];
-      return { backgroundImage: `linear-gradient(-45deg, ${colors.join(', ')})` };
-    }
-  }, [lettersStruckCount, theme]);
-
-  const colors = {
-    dark: {
-      card: 'bg-slate-900/80',
-      text: 'text-white',
-      subtext: 'text-slate-400',
-      accent: 'from-violet-600 to-indigo-700',
-      button: 'bg-indigo-600 hover:bg-indigo-500',
-      gridItem: 'bg-slate-800/80 border-white/5 text-white',
-      gridMarked: 'bg-gradient-to-br from-violet-600 to-fuchsia-700 border-violet-400 shadow-lg shadow-violet-500/30 text-white drop-shadow-md',
-      // High contrast for BINGO letters
-      letterActive: 'bg-yellow-400 text-black border-yellow-200 font-black',
-      letterInactive: 'bg-indigo-950/50 text-indigo-200/40 border-indigo-500/20'
-    },
-    light: {
-      card: 'bg-white/90',
-      text: 'text-slate-900',
-      subtext: 'text-slate-500',
-      accent: 'from-rose-500 to-orange-500',
-      button: 'bg-rose-600 hover:bg-rose-500',
-      gridItem: 'bg-slate-50 border-slate-200 text-slate-800',
-      gridMarked: 'bg-gradient-to-br from-rose-600 to-orange-600 border-rose-400 shadow-lg shadow-rose-500/30 text-white drop-shadow-md',
-      // High contrast for BINGO letters
-      letterActive: 'bg-rose-600 text-white border-rose-400 font-black shadow-rose-200',
-      letterInactive: 'bg-slate-200/50 text-slate-400 border-slate-300'
-    }
-  }[theme];
-
-  const getCellErrors = useCallback(() => {
-    const errors = Array(5).fill(null).map(() => Array(5).fill(false));
-    const flatValues = board.flat().filter(v => v !== '');
-    const counts = {};
-    flatValues.forEach(v => { counts[v] = (counts[v] || 0) + 1; });
-    board.forEach((row, rIdx) => {
-      row.forEach((cell, cIdx) => {
-        if (cell === '') { errors[rIdx][cIdx] = true; return; }
-        const num = parseInt(cell, 10);
-        if (isNaN(num) || num < 1 || num > 25 || counts[cell] > 1) { errors[rIdx][cIdx] = true; }
-      });
-    });
-    return errors;
-  }, [board]);
-
-  const errors = getCellErrors();
-  const hasErrors = errors.flat().some(e => e === true);
-
-  const resetGame = () => {
-    setGameState('setup');
-    setMarked(Array(5).fill(null).map(() => Array(5).fill(false)));
-    setCompletedLines(new Set());
-    if (setupMode === 'random') generateRandomBoard();
-  };
-
-  const generateRandomBoard = useCallback(() => {
-    const numbers = Array.from({ length: 25 }, (_, i) => (i + 1).toString());
-    for (let i = numbers.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [numbers[i], numbers[j]] = [numbers[j], numbers[i]];
-    }
-    const newBoard = [];
-    for (let i = 0; i < 5; i++) {
-      newBoard.push(numbers.slice(i * 5, (i + 1) * 5));
-    }
-    setBoard(newBoard);
-  }, []);
-
-  useEffect(() => {
-    if (setupMode === 'random' && gameState === 'setup') generateRandomBoard();
-  }, [setupMode, gameState, generateRandomBoard]);
-
-  const handleManualInputChange = (row, col, value) => {
-    const cleaned = value.replace(/\D/g, '').slice(0, 2);
-    const newBoard = board.map((r, ri) => r.map((c, ci) => (ri === row && ci === col ? cleaned : c)));
-    setBoard(newBoard);
-  };
-
-  const checkLines = useCallback((currentMarked) => {
-    const newLines = new Set();
-    for (let r = 0; r < 5; r++) { if (currentMarked[r].every(c => c)) newLines.add(`row-${r}`); }
-    for (let c = 0; c < 5; c++) {
-      let colWin = true;
-      for (let r = 0; r < 5; r++) { if (!currentMarked[r][c]) colWin = false; }
-      if (colWin) newLines.add(`col-${c}`);
-    }
-    let d1 = true, d2 = true;
-    for (let i = 0; i < 5; i++) {
-      if (!currentMarked[i][i]) d1 = false;
-      if (!currentMarked[i][4 - i]) d2 = false;
-    }
-    if (d1) newLines.add('diag-1'); if (d2) newLines.add('diag-2');
-    setCompletedLines(newLines);
-  }, []);
-
-  const toggleMark = (row, col) => {
-    if (gameState !== 'playing' || isWinner) return;
-    const newMarked = marked.map((r, rIdx) => r.map((c, cIdx) => (rIdx === row && cIdx === col ? !c : c)));
-    setMarked(newMarked);
-    checkLines(newMarked);
-  };
-
-  return (
-    <div className="min-h-screen flex flex-col items-center p-4 md:p-8 font-sans overflow-y-auto relative transition-colors duration-500">
-      
-      {/* Dynamic Background with fixed property to avoid React warnings */}
-      <div 
-        className="fixed inset-0 z-[-1] transition-all duration-1000 animate-gradient-shift will-change-transform" 
-        style={{ 
-          backgroundImage: dynamicBgStyle.backgroundImage, 
-          backgroundSize: '400% 400%' 
-        }}
-      />
-      
-      <button 
-        onClick={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')}
-        className={`fixed top-4 right-4 z-[110] p-3 rounded-2xl shadow-xl transition-all active:scale-95 flex items-center gap-2 font-black text-[10px] uppercase tracking-widest ${theme === 'dark' ? 'bg-slate-800 text-amber-300' : 'bg-white text-rose-600 shadow-md'}`}
-      >
-        {theme === 'dark' ? '☀️ DAY' : '🌙 NIGHT'}
-      </button>
-
-      {isWinner && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 p-4 animate-pop-in cursor-default overflow-hidden">
-          <Confetti />
-          <div className={`${colors.card} border-4 ${theme === 'dark' ? 'border-violet-500' : 'border-rose-500'} rounded-[3rem] p-10 max-w-sm w-full text-center shadow-2xl relative z-[130]`}>
-            <div className="text-6xl mb-4 animate-bounce-float">🏆</div>
-            <h2 className={`text-5xl font-black ${theme === 'dark' ? 'text-violet-400' : 'text-rose-600'} mb-2 tracking-tighter uppercase italic`}>BINGO!</h2>
-            <button onClick={resetGame} className={`w-full mt-6 ${colors.button} text-white font-black py-5 rounded-[2rem] text-xl shadow-xl active:scale-95 transition-all`}>PLAY AGAIN</button>
-          </div>
-        </div>
-      )}
-
-      <div className={`relative z-10 max-w-md w-full ${colors.card} rounded-[3rem] shadow-2xl overflow-hidden transition-all duration-300 border border-white/10 ${isWinner ? 'scale-95 opacity-50' : ''}`}>
         
-        <div className={`bg-gradient-to-br ${colors.accent} p-8 text-center relative`}>
-          <h1 className="text-4xl font-black tracking-[0.2em] mb-8 text-white drop-shadow-lg italic">BINGO BOT</h1>
-          <div className="flex justify-between gap-2.5">
-            {BINGO_LETTERS.map((letter, idx) => (
-              <div 
-                key={letter} 
-                className={`w-12 h-12 rounded-2xl flex items-center justify-center text-xl transition-all border-2 ${idx < lettersStruckCount ? colors.letterActive : colors.letterInactive}`}
-              >
-                {idx < lettersStruckCount ? '✓' : letter}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="p-8">
-          {gameState === 'setup' ? (
-            <div className="space-y-8">
-              <div className={`flex p-1 rounded-2xl ${theme === 'dark' ? 'bg-black/20' : 'bg-black/5'}`}>
-                <button 
-                  onClick={() => { setSetupMode('random'); generateRandomBoard(); }} 
-                  className={`flex-1 py-3 rounded-xl text-[10px] font-black transition-all ${setupMode === 'random' ? (theme === 'dark' ? 'bg-indigo-600 text-white shadow-lg' : 'bg-rose-600 text-white shadow-md') : colors.subtext}`}
-                >
-                  RANDOM
-                </button>
-                <button 
-                  onClick={() => { setSetupMode('manual'); setBoard(Array(5).fill(null).map(() => Array(5).fill(''))); }} 
-                  className={`flex-1 py-3 rounded-xl text-[10px] font-black transition-all ${setupMode === 'manual' ? (theme === 'dark' ? 'bg-indigo-600 text-white shadow-lg' : 'bg-rose-600 text-white shadow-md') : colors.subtext}`}
-                >
-                  MANUAL
-                </button>
-              </div>
-
-              <div className="grid grid-cols-5 gap-2.5">
-                {board.map((row, rIdx) => row.map((cell, cIdx) => (
-                  <div key={`${rIdx}-${cIdx}`} className="aspect-square">
-                    <input 
-                      type="text" 
-                      value={cell} 
-                      disabled={setupMode === 'random'} 
-                      onChange={(e) => handleManualInputChange(rIdx, cIdx, e.target.value)} 
-                      className={`w-full h-full text-center font-black text-xl rounded-xl border-2 transition-all outline-none ${
-                        setupMode === 'random' 
-                          ? colors.gridItem + ' opacity-50' 
-                          : errors[rIdx][cIdx] && cell !== '' 
-                            ? 'bg-red-500/10 border-red-500 text-red-600 font-black' 
-                            : colors.gridItem + ' focus:border-indigo-500'
-                      }`} 
-                      placeholder="•" 
-                    />
-                  </div>
-                )))}
-              </div>
-              <button 
-                onClick={() => !hasErrors && setGameState('playing')} 
-                disabled={hasErrors} 
-                className={`w-full font-black py-6 rounded-[2rem] shadow-lg active:scale-95 text-lg tracking-widest ${hasErrors ? 'bg-slate-500/20 text-slate-400' : (theme === 'dark' ? 'bg-indigo-600 text-white' : 'bg-rose-600 text-white')}`}
-              >
-                PLAY BINGO
-              </button>
-            </div>
-          ) : (
-            <div className="space-y-10">
-              <div className="grid grid-cols-5 gap-2.5">
-                {board.map((row, rIdx) => row.map((cell, cIdx) => (
-                  <button 
-                    key={`${rIdx}-${cIdx}`} 
-                    onClick={() => toggleMark(rIdx, cIdx)} 
-                    className={`relative aspect-square rounded-2xl text-2xl font-black transition-all border-2 ${marked[rIdx][cIdx] ? `${colors.gridMarked} scale-90 shadow-inner` : colors.gridItem}`}
-                  >
-                    {cell}
-                    {marked[rIdx][cIdx] && (
-                      <div className="absolute inset-0 flex items-center justify-center opacity-40 text-3xl pointer-events-none text-white">✨</div>
-                    )}
-                  </button>
-                )))}
-              </div>
-              <button 
-                onClick={resetGame} 
-                className={`w-full font-black py-5 rounded-[1.5rem] border active:scale-95 text-[10px] uppercase tracking-[0.4em] ${theme === 'dark' ? 'bg-white/5 border-white/10 text-slate-400 hover:text-white' : 'bg-black/5 border-black/10 text-slate-500 hover:text-black'}`}
-              >
-                NEW GAME
-              </button>
-            </div>
-          )}
-        </div>
+        /* --- High Performance CSS Animations --- */
         
-        <div className={`p-6 border-t text-center ${theme === 'dark' ? 'bg-black/10 border-white/5' : 'bg-black/5 border-black/5'}`}>
-          <p className={`text-[10px] uppercase tracking-[0.5em] font-black ${theme === 'dark' ? 'text-slate-600' : 'text-slate-400'}`}>
-            {completedLines.size} / 5 COMPLETED
-          </p>
-        </div>
-      </div>
-
-      <style>{`
         @keyframes gradientShift {
-          0% { background-position: 0% 50%; }
-          50% { background-position: 100% 50%; }
-          100% { background-position: 0% 50%; }
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
         }
-        .animate-gradient-shift {
-          animation: gradientShift 15s ease infinite;
+        
+        .animate-gradient-bg {
+            background-size: 300% 300%;
+            animation: gradientShift 15s ease infinite;
+            will-change: background-position;
         }
-        @keyframes popIn {
-          0% { transform: scale(0.95); opacity: 0; }
-          100% { transform: scale(1); opacity: 1; }
+        
+        @keyframes confettiFall {
+            0% { transform: translate3d(0, -10vh, 0) rotate(0deg); opacity: 1; }
+            100% { transform: translate3d(0, 110vh, 0) rotate(360deg); opacity: 0; }
         }
-        .animate-pop-in {
-          animation: popIn 0.2s ease-out forwards;
+        
+        .confetti {
+            position: absolute;
+            z-index: 999;
+            pointer-events: none;
+            will-change: transform;
+            animation: confettiFall 4s linear infinite;
         }
-        @keyframes bounceFloat {
-          0% { transform: translateY(0); }
-          50% { transform: translateY(-8px); }
-          100% { transform: translateY(0); }
-        }
-        .animate-bounce-float {
-          animation: bounceFloat 3s ease-in-out infinite;
-        }
-      `}</style>
-    </div>
-  );
-};
 
-export default App;
+        @keyframes popIn {
+            0% { transform: scale(0.9); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        
+        .animate-pop {
+            animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+        
+        .animate-float {
+            animation: float 3s ease-in-out infinite;
+        }
+
+        /* Glassmorphism utility */
+        .glass-panel {
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        /* Transition helper */
+        .theme-transition {
+            transition: background-image 0.5s ease, background-color 0.5s ease, color 0.3s ease;
+        }
+    </style>
+</head>
+<body class="theme-transition">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useCallback, useMemo } = React;
+        const BINGO_LETTERS = ['B', 'I', 'N', 'G', 'O'];
+
+        // --- Components ---
+
+        const ConfettiOverlay = () => {
+            const pieces = useMemo(() => Array.from({ length: 40 }).map((_, i) => ({
+                id: i,
+                left: Math.random() * 100 + '%',
+                delay: Math.random() * 2 + 's',
+                color: ['#f43f5e', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6'][Math.floor(Math.random() * 5)],
+                size: Math.random() * 8 + 5 + 'px'
+            })), []);
+
+            return (
+                <div className="fixed inset-0 pointer-events-none z-50 overflow-hidden">
+                    {pieces.map(p => (
+                        <div key={p.id} className="confetti" style={{ 
+                            left: p.left, 
+                            animationDelay: p.delay, 
+                            backgroundColor: p.color, 
+                            width: p.size, 
+                            height: p.size 
+                        }} />
+                    ))}
+                </div>
+            );
+        };
+
+        const App = () => {
+            const [gameState, setGameState] = useState('setup');
+            const [setupMode, setSetupMode] = useState('random');
+            const [theme, setTheme] = useState('dark');
+            const [board, setBoard] = useState(Array(5).fill(null).map(() => Array(5).fill('')));
+            const [marked, setMarked] = useState(Array(5).fill(null).map(() => Array(5).fill(false)));
+            const [completedLines, setCompletedLines] = useState(new Set());
+
+            const lettersStruckCount = Math.min(completedLines.size, 5);
+            const isWinner = lettersStruckCount >= 5;
+
+            // --- Theme & Style Logic ---
+
+            const themeStyles = useMemo(() => {
+                const p = lettersStruckCount;
+                
+                if (theme === 'dark') {
+                    // Deep Space -> Nebula Purple
+                    const stops = [
+                        '#020617', // Slate 950
+                        p > 1 ? '#172554' : '#0f172a', // Blue 950
+                        p > 3 ? '#312e81' : '#1e1b4b', // Indigo 900
+                        p === 5 ? '#581c87' : '#020617'  // Purple 900
+                    ];
+                    return {
+                        bgGradient: `linear-gradient(-45deg, ${stops.join(', ')})`,
+                        textMain: 'text-white',
+                        textSub: 'text-slate-400',
+                        cardBg: 'bg-slate-900/80',
+                        gridBase: 'bg-slate-800/50 border-white/10 text-white',
+                        gridMarked: 'bg-gradient-to-br from-violet-600 to-fuchsia-600 border-violet-400 shadow-violet-500/40',
+                        // High Contrast Header Letters
+                        headerLetterActive: 'bg-yellow-400 text-black border-yellow-200 shadow-yellow-400/50',
+                        headerLetterInactive: 'bg-slate-800 text-slate-600 border-slate-700',
+                        buttonPrimary: 'bg-indigo-600 hover:bg-indigo-500 text-white'
+                    };
+                } else {
+                    // Soft Cloud -> Sunset
+                    const stops = [
+                        '#e2e8f0', // Slate 200 (Visible grey base)
+                        p > 1 ? '#fecaca' : '#f1f5f9', // Red 200
+                        p > 3 ? '#fde68a' : '#e2e8f0', // Amber 200
+                        p === 5 ? '#86efac' : '#f8fafc'  // Green 300
+                    ];
+                    return {
+                        bgGradient: `linear-gradient(-45deg, ${stops.join(', ')})`,
+                        textMain: 'text-slate-900',
+                        textSub: 'text-slate-500',
+                        cardBg: 'bg-white/90',
+                        gridBase: 'bg-white border-slate-200 text-slate-800',
+                        gridMarked: 'bg-gradient-to-br from-rose-500 to-orange-500 border-rose-300 shadow-rose-500/40 text-white',
+                        // High Contrast Header Letters
+                        headerLetterActive: 'bg-rose-600 text-white border-rose-400 shadow-rose-500/40',
+                        headerLetterInactive: 'bg-slate-200 text-slate-400 border-slate-300',
+                        buttonPrimary: 'bg-rose-600 hover:bg-rose-500 text-white'
+                    };
+                }
+            }, [theme, lettersStruckCount]);
+
+            // --- Game Logic ---
+
+            const getCellErrors = useCallback(() => {
+                const errors = Array(5).fill(null).map(() => Array(5).fill(false));
+                const flatValues = board.flat().filter(v => v !== '');
+                const counts = {};
+                flatValues.forEach(v => { counts[v] = (counts[v] || 0) + 1; });
+                board.forEach((row, rIdx) => {
+                    row.forEach((cell, cIdx) => {
+                        if (cell === '') { errors[rIdx][cIdx] = true; return; }
+                        const num = parseInt(cell, 10);
+                        if (isNaN(num) || num < 1 || num > 25 || counts[cell] > 1) { errors[rIdx][cIdx] = true; }
+                    });
+                });
+                return errors;
+            }, [board]);
+
+            const hasErrors = getCellErrors().flat().some(e => e === true);
+
+            const generateRandomBoard = useCallback(() => {
+                const numbers = Array.from({ length: 25 }, (_, i) => (i + 1).toString());
+                // Fisher-Yates Shuffle
+                for (let i = numbers.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [numbers[i], numbers[j]] = [numbers[j], numbers[i]];
+                }
+                const newBoard = [];
+                for (let i = 0; i < 5; i++) {
+                    newBoard.push(numbers.slice(i * 5, (i + 1) * 5));
+                }
+                setBoard(newBoard);
+            }, []);
+
+            // Initial Load
+            useEffect(() => {
+                if (setupMode === 'random' && gameState === 'setup') generateRandomBoard();
+            }, [setupMode, gameState, generateRandomBoard]);
+
+            const resetGame = () => {
+                setGameState('setup');
+                setMarked(Array(5).fill(null).map(() => Array(5).fill(false)));
+                setCompletedLines(new Set());
+                if (setupMode === 'random') generateRandomBoard();
+            };
+
+            const handleManualInput = (r, c, val) => {
+                const clean = val.replace(/\D/g, '').slice(0, 2);
+                const newBoard = board.map((row, ri) => row.map((cell, ci) => (ri === r && ci === c ? clean : cell)));
+                setBoard(newBoard);
+            };
+
+            const checkWin = (currentMarked) => {
+                const newLines = new Set();
+                // Rows & Cols
+                for (let i = 0; i < 5; i++) {
+                    if (currentMarked[i].every(Boolean)) newLines.add(`row-${i}`);
+                    if (currentMarked.every(row => row[i])) newLines.add(`col-${i}`);
+                }
+                // Diagonals
+                if (currentMarked.every((row, i) => row[i])) newLines.add('d1');
+                if (currentMarked.every((row, i) => row[4 - i])) newLines.add('d2');
+                
+                setCompletedLines(newLines);
+            };
+
+            const toggleCell = (r, c) => {
+                if (gameState !== 'playing' || isWinner) return;
+                const newMarked = marked.map((row, ri) => row.map((val, ci) => (ri === r && ci === c ? !val : val)));
+                setMarked(newMarked);
+                checkWin(newMarked);
+            };
+
+            // --- Render ---
+
+            return (
+                <div 
+                    className="min-h-screen flex flex-col items-center p-4 md:p-8 animate-gradient-bg theme-transition relative"
+                    style={{ backgroundImage: themeStyles.bgGradient }}
+                >
+                    {/* Theme Toggle */}
+                    <button 
+                        onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}
+                        className={`fixed top-4 right-4 z-50 px-4 py-2 rounded-full font-bold text-sm shadow-lg transition-transform active:scale-95 ${theme === 'dark' ? 'bg-slate-800 text-yellow-400' : 'bg-white text-rose-500'}`}
+                    >
+                        {theme === 'dark' ? '☀️ DAY' : '🌙 NIGHT'}
+                    </button>
+
+                    {/* Victory Modal */}
+                    {isWinner && (
+                        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4 animate-pop cursor-default">
+                            <ConfettiOverlay />
+                            <div className={`glass-panel ${themeStyles.cardBg} border-4 ${theme === 'dark' ? 'border-yellow-400' : 'border-rose-500'} rounded-3xl p-10 max-w-sm w-full text-center shadow-2xl relative`}>
+                                <div className="text-7xl mb-4 animate-float">🏆</div>
+                                <h2 className={`text-5xl font-black ${theme === 'dark' ? 'text-yellow-400' : 'text-rose-600'} mb-2 tracking-tighter uppercase italic`}>BINGO!</h2>
+                                <p className={`text-lg font-medium mb-8 ${themeStyles.textSub}`}>Victory is yours!</p>
+                                <button 
+                                    onClick={resetGame} 
+                                    className={`w-full py-4 rounded-2xl text-xl font-black shadow-xl active:scale-95 transition-all ${themeStyles.buttonPrimary}`}
+                                >
+                                    PLAY AGAIN
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Main Card */}
+                    <div className={`w-full max-w-md glass-panel ${themeStyles.cardBg} rounded-[2.5rem] shadow-2xl overflow-hidden transition-all duration-300 relative z-10 ${isWinner ? 'scale-95 opacity-50 blur-sm pointer-events-none' : ''}`}>
+                        
+                        {/* Header */}
+                        <div className="p-8 text-center bg-gradient-to-br from-white/10 to-transparent">
+                            <h1 className={`text-4xl font-black tracking-[0.3em] mb-8 italic drop-shadow-md ${theme === 'dark' ? 'text-white' : 'text-slate-800'}`}>BINGO</h1>
+                            <div className="flex justify-between gap-2">
+                                {BINGO_LETTERS.map((letter, idx) => (
+                                    <div 
+                                        key={idx}
+                                        className={`w-12 h-12 flex items-center justify-center rounded-xl text-2xl font-black border-b-4 transition-all duration-300 ${idx < lettersStruckCount ? themeStyles.headerLetterActive : themeStyles.headerLetterInactive}`}
+                                    >
+                                        {letter}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Game Area */}
+                        <div className="p-8 pt-2">
+                            {gameState === 'setup' ? (
+                                <div className="space-y-8">
+                                    {/* Setup Controls */}
+                                    <div className={`flex p-1.5 rounded-2xl ${theme === 'dark' ? 'bg-black/30' : 'bg-slate-100'}`}>
+                                        <button onClick={() => { setSetupMode('random'); generateRandomBoard(); }} className={`flex-1 py-3 rounded-xl text-xs font-black tracking-widest transition-all ${setupMode === 'random' ? themeStyles.buttonPrimary + ' shadow-lg' : themeStyles.textSub}`}>RANDOM</button>
+                                        <button onClick={() => { setSetupMode('manual'); setBoard(Array(5).fill(null).map(() => Array(5).fill(''))); }} className={`flex-1 py-3 rounded-xl text-xs font-black tracking-widest transition-all ${setupMode === 'manual' ? themeStyles.buttonPrimary + ' shadow-lg' : themeStyles.textSub}`}>MANUAL</button>
+                                    </div>
+
+                                    {/* Input Grid */}
+                                    <div className="grid grid-cols-5 gap-2.5">
+                                        {board.map((row, rIdx) => row.map((cell, cIdx) => (
+                                            <div key={`${rIdx}-${cIdx}`} className="aspect-square">
+                                                <input 
+                                                    type="text" 
+                                                    inputMode="numeric"
+                                                    value={cell}
+                                                    disabled={setupMode === 'random'}
+                                                    onChange={(e) => handleManualInput(rIdx, cIdx, e.target.value)}
+                                                    className={`w-full h-full text-center font-black text-xl rounded-xl border-2 outline-none transition-all ${setupMode === 'random' ? themeStyles.gridBase + ' opacity-60' : (getCellErrors()[rIdx][cIdx] && cell !== '' ? 'bg-red-500/20 border-red-500 text-red-500' : themeStyles.gridBase + ' focus:border-current')}`}
+                                                    placeholder="•"
+                                                />
+                                            </div>
+                                        )))}
+                                    </div>
+
+                                    <button 
+                                        onClick={() => !hasErrors && setGameState('playing')} 
+                                        disabled={hasErrors}
+                                        className={`w-full py-5 rounded-2xl text-xl font-black tracking-widest shadow-xl active:scale-95 transition-all ${hasErrors ? 'bg-slate-500/20 text-slate-400 cursor-not-allowed' : themeStyles.buttonPrimary}`}
+                                    >
+                                        START
+                                    </button>
+                                </div>
+                            ) : (
+                                <div className="space-y-10">
+                                    {/* Playing Grid */}
+                                    <div className="grid grid-cols-5 gap-2.5">
+                                        {board.map((row, rIdx) => row.map((cell, cIdx) => (
+                                            <button 
+                                                key={`${rIdx}-${cIdx}`}
+                                                onClick={() => toggleCell(rIdx, cIdx)}
+                                                className={`relative aspect-square rounded-xl text-xl font-black transition-all border-b-4 active:border-b-0 active:translate-y-1 ${marked[rIdx][cIdx] ? themeStyles.gridMarked + ' scale-95' : themeStyles.gridBase}`}
+                                            >
+                                                {cell}
+                                                {marked[rIdx][cIdx] && <span className="absolute inset-0 flex items-center justify-center text-3xl opacity-30 pointer-events-none">✨</span>}
+                                            </button>
+                                        )))}
+                                    </div>
+
+                                    <button 
+                                        onClick={resetGame}
+                                        className={`w-full py-4 rounded-xl border-2 text-xs font-black tracking-[0.3em] active:scale-95 transition-all ${theme === 'dark' ? 'border-white/10 text-slate-400 hover:text-white' : 'border-slate-200 text-slate-400 hover:text-slate-600'}`}
+                                    >
+                                        RESET BOARD
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Footer Status */}
+                        <div className={`p-4 text-center border-t ${theme === 'dark' ? 'border-white/5 bg-black/20' : 'border-slate-100 bg-slate-50/50'}`}>
+                            <p className={`text-[10px] font-black tracking-[0.4em] ${themeStyles.textSub}`}>
+                                {completedLines.size} / 5 LINES
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>

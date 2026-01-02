@@ -112,6 +112,7 @@
             const [gameState, setGameState] = useState('setup');
             const [setupMode, setSetupMode] = useState('random');
             const [gameMode, setGameMode] = useState('friend'); 
+            const [botDifficulty, setBotDifficulty] = useState('easy'); // 'easy' or 'hard'
             const [theme, setTheme] = useState('dark');
             const [board, setBoard] = useState(Array(5).fill(null).map(() => Array(5).fill('')));
             const [marked, setMarked] = useState(Array(5).fill(null).map(() => Array(5).fill(false)));
@@ -191,17 +192,68 @@
             const triggerBotMove = () => {
                 if (isWinner || botWins || turn !== 'bot') return;
 
-                // Simple AI: Pick a random available number from Bot's board
-                // (In a real game, this could be strategic, but random is fair for now)
-                let availableNumbers = [];
+                // Find all available numbers on Bot's board
+                let options = [];
                 botBoard.forEach((row, r) => {
                     row.forEach((cell, c) => {
-                        if (!botMarked[r][c]) availableNumbers.push(cell);
+                        if (!botMarked[r][c]) {
+                            options.push({ r, c, val: cell });
+                        }
                     });
                 });
 
-                if (availableNumbers.length === 0) return;
-                const pick = availableNumbers[Math.floor(Math.random() * availableNumbers.length)];
+                if (options.length === 0) return;
+
+                let pick;
+
+                // --- DIFFICULTY LOGIC ---
+                if (botDifficulty === 'easy') {
+                    // EASY: Pure random selection
+                    const randomOption = options[Math.floor(Math.random() * options.length)];
+                    pick = randomOption.val;
+                } else {
+                    // HARD: Strategic AI (Prioritize lines)
+                    let bestPick = null;
+                    let maxScore = -1;
+
+                    options.forEach(opt => {
+                        let score = 0;
+                        const { r, c } = opt;
+                        const getLineScore = (count) => Math.pow(10, count);
+
+                        // Row
+                        let rowCount = 0;
+                        for(let k=0; k<5; k++) if(botMarked[r][k]) rowCount++;
+                        score += getLineScore(rowCount);
+
+                        // Col
+                        let colCount = 0;
+                        for(let k=0; k<5; k++) if(botMarked[k][c]) colCount++;
+                        score += getLineScore(colCount);
+
+                        // Diag 1
+                        if (r === c) {
+                            let d1Count = 0;
+                            for(let k=0; k<5; k++) if(botMarked[k][k]) d1Count++;
+                            score += getLineScore(d1Count);
+                        }
+
+                        // Diag 2
+                        if (r + c === 4) {
+                            let d2Count = 0;
+                            for(let k=0; k<5; k++) if(botMarked[k][4-k]) d2Count++;
+                            score += getLineScore(d2Count);
+                        }
+                        
+                        score += Math.random(); // Tie-breaker
+
+                        if (score > maxScore) {
+                            maxScore = score;
+                            bestPick = opt.val;
+                        }
+                    });
+                    pick = bestPick;
+                }
 
                 setLastAction(`Bot picked ${pick}`);
                 
@@ -366,7 +418,9 @@
                             <div key={`${rIdx}-${cIdx}`} className={`w-5 h-5 rounded-sm border transition-all duration-300 ${isMarked ? themeStyles.botGridMarked : themeStyles.botGridBase}`}></div>
                         )))}
                     </div>
-                    <div className={`text-[10px] font-bold mt-1 ${themeStyles.textSub} uppercase tracking-widest`}>BOT OPPONENT</div>
+                    <div className={`text-[10px] font-bold mt-1 ${themeStyles.textSub} uppercase tracking-widest`}>
+                        BOT ({botDifficulty})
+                    </div>
                 </div>
             );
 
@@ -449,6 +503,12 @@
                                             <button onClick={() => setGameMode('friend')} className={`flex-1 py-3 rounded-xl text-xs font-black tracking-widest ${gameMode === 'friend' ? themeStyles.buttonPrimary + ' shadow-lg' : themeStyles.textSub}`}>👥 FRIENDS</button>
                                             <button onClick={() => setGameMode('bot')} className={`flex-1 py-3 rounded-xl text-xs font-black tracking-widest ${gameMode === 'bot' ? themeStyles.buttonPrimary + ' shadow-lg' : themeStyles.textSub}`}>🤖 BOT</button>
                                         </div>
+                                        {gameMode === 'bot' && (
+                                            <div className={`flex p-1.5 rounded-2xl mt-4 ${theme === 'dark' ? 'bg-black/30' : 'bg-slate-100'}`}>
+                                                <button onClick={() => setBotDifficulty('easy')} className={`flex-1 py-3 rounded-xl text-xs font-black tracking-widest ${botDifficulty === 'easy' ? themeStyles.buttonPrimary + ' shadow-lg' : themeStyles.textSub}`}>EASY</button>
+                                                <button onClick={() => setBotDifficulty('hard')} className={`flex-1 py-3 rounded-xl text-xs font-black tracking-widest ${botDifficulty === 'hard' ? themeStyles.buttonPrimary + ' shadow-lg' : themeStyles.textSub}`}>HARD</button>
+                                            </div>
+                                        )}
                                         <button onClick={() => setShowRules(true)} className={`w-full text-[10px] font-bold uppercase tracking-widest opacity-60 hover:opacity-100 ${themeStyles.textSub}`}>How to Play?</button>
                                     </div>
 

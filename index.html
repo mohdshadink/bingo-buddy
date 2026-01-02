@@ -1,96 +1,54 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- Google tag (gtag.js) -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-Q99CLL9BB8"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-
-  gtag('config', 'G-Q99CLL9BB8');
-</script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Bingo Buddy</title>
-    
-    <!-- 1. Load Tailwind CSS -->
+    <!-- Dependencies -->
     <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- 2. Load React & ReactDOM -->
     <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
-    
-    <!-- 3. Load Babel (to compile JSX in the browser) -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    
     <style>
-        body { 
-            -webkit-font-smoothing: antialiased; 
-            margin: 0; 
-            padding: 0; 
-            overflow-x: hidden; 
-            font-family: system-ui, -apple-system, sans-serif;
-        }
+        body { -webkit-font-smoothing: antialiased; margin: 0; padding: 0; overflow-x: hidden; font-family: system-ui, -apple-system, sans-serif; }
         
-        /* --- High Performance CSS Animations --- */
-        
+        /* High-Performance Animations */
         @keyframes gradientShift {
-            0% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-            100% { background-position: 0% 50%; }
+          0% { background-position: 0% 50%; }
+          50% { background-position: 100% 50%; }
+          100% { background-position: 0% 50%; }
         }
-        
         .animate-gradient-bg {
             background-size: 300% 300%;
             animation: gradientShift 15s ease infinite;
             will-change: background-position;
         }
         
+        @keyframes popIn { 0% { transform: scale(0.9); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+        .animate-pop-in { animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+
+        @keyframes bounceFloat {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-10px); }
+        }
+        .animate-bounce-float { animation: bounceFloat 3s ease-in-out infinite; }
+
         @keyframes confettiFall {
-            0% { transform: translate3d(0, -10vh, 0) rotate(0deg); opacity: 1; }
-            100% { transform: translate3d(0, 110vh, 0) rotate(360deg); opacity: 0; }
+          0% { transform: translate3d(0, -10vh, 0) rotate(0deg); opacity: 1; }
+          100% { transform: translate3d(0, 110vh, 0) rotate(360deg); opacity: 0; }
         }
-        
-        .confetti {
-            position: absolute;
-            z-index: 999;
-            pointer-events: none;
-            will-change: transform;
-            animation: confettiFall 4s linear infinite;
-        }
+        .animate-confetti-fall { animation: confettiFall 3s linear infinite; }
 
-        @keyframes popIn {
-            0% { transform: scale(0.9); opacity: 0; }
-            100% { transform: scale(1); opacity: 1; }
-        }
-        
-        .animate-pop {
-            animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
-        }
-
-        @keyframes float {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-10px); }
-        }
-        
-        .animate-float {
-            animation: float 3s ease-in-out infinite;
-        }
-
-        /* Glassmorphism utility */
         .glass-panel {
             backdrop-filter: blur(12px);
             -webkit-backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.15);
         }
 
-        /* Transition helper */
-        .theme-transition {
-            transition: background-image 0.5s ease, background-color 0.5s ease, color 0.3s ease;
-        }
+        .theme-transition { transition: background-image 0.5s ease, background-color 0.5s ease, color 0.3s ease; }
+        
+        #root { min-height: 100vh; }
     </style>
-<script defer src="/_vercel/insights/script.js"></script>
 </head>
 <body class="theme-transition">
     <div id="root"></div>
@@ -98,12 +56,7 @@
     <script type="text/babel">
         const { useState, useEffect, useCallback, useMemo, useRef } = React;
         const BINGO_LETTERS = ['B', 'I', 'N', 'G', 'O'];
-        
-        // Placeholder music URL (Royalty Free or Public Domain example)
-        // You can replace this with any direct MP3 link
         const MUSIC_URL = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3";
-
-        // --- Components ---
 
         const ConfettiOverlay = () => {
             const pieces = useMemo(() => Array.from({ length: 40 }).map((_, i) => ({
@@ -113,111 +66,200 @@
                 color: ['#f43f5e', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6'][Math.floor(Math.random() * 5)],
                 size: Math.random() * 8 + 5 + 'px'
             })), []);
-
             return (
                 <div className="fixed inset-0 pointer-events-none z-50 overflow-hidden">
                     {pieces.map(p => (
-                        <div key={p.id} className="confetti" style={{ 
-                            left: p.left, 
-                            animationDelay: p.delay, 
-                            backgroundColor: p.color, 
-                            width: p.size, 
-                            height: p.size 
-                        }} />
+                        <div key={p.id} className="confetti" style={{ left: p.left, animationDelay: p.delay, backgroundColor: p.color, width: p.size, height: p.size }} />
                     ))}
                 </div>
             );
         };
 
+        const RulesModal = ({ onClose, themeStyles }) => (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 animate-pop-in">
+                <div className={`glass-panel ${themeStyles.cardBg} border-2 border-white/20 rounded-3xl p-8 max-w-md w-full relative max-h-[90vh] overflow-y-auto`}>
+                    <h2 className={`text-3xl font-black mb-6 ${themeStyles.textMain}`}>HOW TO PLAY</h2>
+                    
+                    <div className={`space-y-6 text-sm ${themeStyles.textSub} font-medium`}>
+                        <div>
+                            <h3 className={`text-lg font-bold mb-2 ${themeStyles.textMain}`}>👥 Friend Mode (Multiplayer)</h3>
+                            <p className="mb-2">Perfect for video calls. You can play in two ways:</p>
+                            <ul className="list-disc list-inside space-y-2 opacity-90 pl-1">
+                                <li><strong>Option 1: Classic Caller</strong><br/>One person (or a 3rd party app) acts as the "Caller" and shouts random numbers. Everyone marks their own board.</li>
+                                <li><strong>Option 2: Tactical Battle (1v1, 5v5, etc)</strong><br/>Take turns! Player A picks a number, and <em>everyone</em> marks it. Then Player B picks a number, and <em>everyone</em> marks it. Repeat until someone gets 5 lines!</li>
+                            </ul>
+                        </div>
+                        
+                        <div className="border-t border-white/10 pt-4">
+                            <h3 className={`text-lg font-bold mb-2 ${themeStyles.textMain}`}>🤖 Bot Mode (Solo Duel)</h3>
+                            <p className="mb-2">A strategic 1v1 duel against the computer.</p>
+                            <ul className="list-disc list-inside space-y-1 opacity-90 pl-1">
+                                <li><strong>Your Turn:</strong> Click any number on your board. It gets marked on yours AND the Bot's board.</li>
+                                <li><strong>Bot's Turn:</strong> Click "Bot Move". The Bot picks a number. It gets marked on its board AND yours.</li>
+                                <li><strong>Goal:</strong> Complete 5 lines before the Bot does.</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <button onClick={onClose} className={`w-full mt-8 py-3 rounded-xl font-bold text-lg ${themeStyles.buttonPrimary} shadow-lg`}>
+                        GOT IT
+                    </button>
+                </div>
+            </div>
+        );
+
         const App = () => {
             const [gameState, setGameState] = useState('setup');
             const [setupMode, setSetupMode] = useState('random');
+            const [gameMode, setGameMode] = useState('friend'); 
             const [theme, setTheme] = useState('dark');
             const [board, setBoard] = useState(Array(5).fill(null).map(() => Array(5).fill('')));
             const [marked, setMarked] = useState(Array(5).fill(null).map(() => Array(5).fill(false)));
             const [completedLines, setCompletedLines] = useState(new Set());
             const [isMusicPlaying, setIsMusicPlaying] = useState(false);
+            const [showRules, setShowRules] = useState(false);
+            
+            // Bot State
+            const [botBoard, setBotBoard] = useState([]);
+            const [botMarked, setBotMarked] = useState(Array(5).fill(null).map(() => Array(5).fill(false)));
+            const [botWins, setBotWins] = useState(false);
+            const [botLines, setBotLines] = useState(0);
+            
+            // Turn State for Bot Mode
+            const [turn, setTurn] = useState('player'); // 'player' or 'bot'
+            const [lastAction, setLastAction] = useState('');
 
             const audioRef = useRef(null);
 
             const lettersStruckCount = Math.min(completedLines.size, 5);
             const isWinner = lettersStruckCount >= 5;
 
-            // --- Audio Logic ---
+            // Audio Effect
             useEffect(() => {
                 audioRef.current = new Audio(MUSIC_URL);
                 audioRef.current.loop = true;
-                audioRef.current.volume = 0.4; // 40% volume
-                
-                return () => {
-                    if (audioRef.current) {
-                        audioRef.current.pause();
-                        audioRef.current = null;
-                    }
-                };
+                audioRef.current.volume = 0.4;
+                return () => { if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; } };
             }, []);
 
             useEffect(() => {
                 if (audioRef.current) {
-                    if (isMusicPlaying) {
-                        audioRef.current.play().catch(e => console.log("Audio play failed (user interaction required first):", e));
-                    } else {
-                        audioRef.current.pause();
-                    }
+                    if (isMusicPlaying) audioRef.current.play().catch(() => {});
+                    else audioRef.current.pause();
                 }
             }, [isMusicPlaying]);
 
-            const toggleMusic = () => setIsMusicPlaying(!isMusicPlaying);
+            // Helper to generate a random 1-25 board
+            const createRandomBoard = () => {
+                const numbers = Array.from({ length: 25 }, (_, i) => (i + 1).toString());
+                for (let i = numbers.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [numbers[i], numbers[j]] = [numbers[j], numbers[i]];
+                }
+                const newBoard = [];
+                for (let i = 0; i < 5; i++) newBoard.push(numbers.slice(i * 5, (i + 1) * 5));
+                return newBoard;
+            };
 
-            // --- Theme & Style Logic ---
+            // Shared marking logic (Mark number X on a specific board)
+            const markNumberOnBoard = (targetBoard, targetMarked, number) => {
+                let newMarked = targetMarked.map(row => [...row]);
+                targetBoard.forEach((row, rIdx) => {
+                    row.forEach((cell, cIdx) => {
+                        if (cell === number) newMarked[rIdx][cIdx] = true;
+                    });
+                });
+                return newMarked;
+            };
+
+            // Check Win helper
+            const calculateLines = (currentMarked) => {
+                let lines = 0;
+                let lineSet = new Set();
+                // Rows
+                for (let i = 0; i < 5; i++) {
+                    if (currentMarked[i].every(Boolean)) { lines++; lineSet.add(`row-${i}`); }
+                    if (currentMarked.every(row => row[i])) { lines++; lineSet.add(`col-${i}`); }
+                }
+                // Diags
+                if (currentMarked.every((row, i) => row[i])) { lines++; lineSet.add('d1'); }
+                if (currentMarked.every((row, i) => row[4 - i])) { lines++; lineSet.add('d2'); }
+                return { count: lines, set: lineSet };
+            };
+
+            // Bot Turn Logic
+            const triggerBotMove = () => {
+                if (isWinner || botWins || turn !== 'bot') return;
+
+                // Simple AI: Pick a random available number from Bot's board
+                // (In a real game, this could be strategic, but random is fair for now)
+                let availableNumbers = [];
+                botBoard.forEach((row, r) => {
+                    row.forEach((cell, c) => {
+                        if (!botMarked[r][c]) availableNumbers.push(cell);
+                    });
+                });
+
+                if (availableNumbers.length === 0) return;
+                const pick = availableNumbers[Math.floor(Math.random() * availableNumbers.length)];
+
+                setLastAction(`Bot picked ${pick}`);
+                
+                // Mark on Bot Board
+                const newBotMarked = markNumberOnBoard(botBoard, botMarked, pick);
+                setBotMarked(newBotMarked);
+                
+                // Mark on Player Board
+                const newPlayerMarked = markNumberOnBoard(board, marked, pick);
+                setMarked(newPlayerMarked);
+
+                // Check Wins
+                const botResult = calculateLines(newBotMarked);
+                setBotLines(botResult.count);
+                if (botResult.count >= 5) setBotWins(true);
+
+                const playerResult = calculateLines(newPlayerMarked);
+                setCompletedLines(playerResult.set);
+                
+                setTurn('player');
+            };
 
             const themeStyles = useMemo(() => {
                 const p = lettersStruckCount;
-                
                 if (theme === 'dark') {
-                    // Deep Space -> Nebula Purple
-                    const stops = [
-                        '#020617', // Slate 950
-                        p > 1 ? '#172554' : '#0f172a', // Blue 950
-                        p > 3 ? '#312e81' : '#1e1b4b', // Indigo 900
-                        p === 5 ? '#581c87' : '#020617'  // Purple 900
-                    ];
-                    return {
-                        bgGradient: `linear-gradient(-45deg, ${stops.join(', ')})`,
-                        textMain: 'text-white',
-                        textSub: 'text-slate-400',
-                        cardBg: 'bg-slate-900/80',
-                        gridBase: 'bg-slate-800/50 border-white/10 text-white',
-                        gridMarked: 'bg-gradient-to-br from-violet-600 to-fuchsia-600 border-violet-400 shadow-violet-500/40',
-                        // High Contrast Header Letters
-                        headerLetterActive: 'bg-yellow-400 text-black border-yellow-200 shadow-yellow-400/50',
-                        headerLetterInactive: 'bg-slate-800 text-slate-600 border-slate-700',
-                        buttonPrimary: 'bg-indigo-600 hover:bg-indigo-500 text-white'
+                    const stops = ['#020617', p > 1 ? '#172554' : '#0f172a', p > 3 ? '#312e81' : '#1e1b4b', p === 5 ? '#581c87' : '#020617'];
+                    return { 
+                        bgGradient: `linear-gradient(-45deg, ${stops.join(', ')})`, 
+                        textMain: 'text-white', 
+                        textSub: 'text-slate-400', 
+                        cardBg: 'bg-slate-900/90', 
+                        gridBase: 'bg-slate-800/50 border-white/10 text-white', 
+                        gridMarked: 'bg-gradient-to-br from-violet-600 to-fuchsia-600 border-violet-400', 
+                        botGridBase: 'bg-slate-800/30 border-white/5',
+                        botGridMarked: 'bg-red-500/80 border-red-400',
+                        headerLetterActive: 'bg-yellow-400 text-black border-yellow-200 shadow-yellow-400/50', 
+                        headerLetterInactive: 'bg-slate-800 text-slate-600 border-slate-700', 
+                        buttonPrimary: 'bg-indigo-600 hover:bg-indigo-500 text-white', 
+                        buttonDisabled: 'bg-slate-700 text-slate-500 cursor-not-allowed' 
                     };
                 } else {
-                    // Soft Cloud -> Sunset
-                    const stops = [
-                        '#e2e8f0', // Slate 200 (Visible grey base)
-                        p > 1 ? '#fecaca' : '#f1f5f9', // Red 200
-                        p > 3 ? '#fde68a' : '#e2e8f0', // Amber 200
-                        p === 5 ? '#86efac' : '#f8fafc'  // Green 300
-                    ];
-                    return {
-                        bgGradient: `linear-gradient(-45deg, ${stops.join(', ')})`,
-                        textMain: 'text-slate-900',
-                        textSub: 'text-slate-500',
-                        cardBg: 'bg-white/90',
-                        gridBase: 'bg-white border-slate-200 text-slate-800',
-                        gridMarked: 'bg-gradient-to-br from-rose-500 to-orange-500 border-rose-300 shadow-rose-500/40 text-white',
-                        // High Contrast Header Letters
-                        headerLetterActive: 'bg-rose-600 text-white border-rose-400 shadow-rose-500/40',
-                        headerLetterInactive: 'bg-slate-200 text-slate-400 border-slate-300',
-                        buttonPrimary: 'bg-rose-600 hover:bg-rose-500 text-white'
+                    const stops = ['#e2e8f0', p > 1 ? '#fecaca' : '#f1f5f9', p > 3 ? '#fde68a' : '#e2e8f0', p === 5 ? '#86efac' : '#f8fafc'];
+                    return { 
+                        bgGradient: `linear-gradient(-45deg, ${stops.join(', ')})`, 
+                        textMain: 'text-slate-900', 
+                        textSub: 'text-slate-500', 
+                        cardBg: 'bg-white/95', 
+                        gridBase: 'bg-white border-slate-200 text-slate-800', 
+                        gridMarked: 'bg-gradient-to-br from-rose-500 to-orange-500 border-rose-300', 
+                        botGridBase: 'bg-slate-100 border-slate-200',
+                        botGridMarked: 'bg-red-400 border-red-300',
+                        headerLetterActive: 'bg-rose-600 text-white border-rose-400 shadow-rose-500/40', 
+                        headerLetterInactive: 'bg-slate-200 text-slate-400 border-slate-300', 
+                        buttonPrimary: 'bg-rose-600 hover:bg-rose-500 text-white', 
+                        buttonDisabled: 'bg-slate-100 text-slate-300 cursor-not-allowed' 
                     };
                 }
             }, [theme, lettersStruckCount]);
-
-            // --- Game Logic ---
 
             const getCellErrors = useCallback(() => {
                 const errors = Array(5).fill(null).map(() => Array(5).fill(false));
@@ -228,7 +270,7 @@
                     row.forEach((cell, cIdx) => {
                         if (cell === '') { errors[rIdx][cIdx] = true; return; }
                         const num = parseInt(cell, 10);
-                        if (isNaN(num) || num < 1 || num > 25 || counts[cell] > 1) { errors[rIdx][cIdx] = true; }
+                        if (isNaN(num) || num < 1 || num > 25 || counts[cell] > 1) errors[rIdx][cIdx] = true;
                     });
                 });
                 return errors;
@@ -236,30 +278,32 @@
 
             const hasErrors = getCellErrors().flat().some(e => e === true);
 
-            const generateRandomBoard = useCallback(() => {
-                const numbers = Array.from({ length: 25 }, (_, i) => (i + 1).toString());
-                // Fisher-Yates Shuffle
-                for (let i = numbers.length - 1; i > 0; i--) {
-                    const j = Math.floor(Math.random() * (i + 1));
-                    [numbers[i], numbers[j]] = [numbers[j], numbers[i]];
-                }
-                const newBoard = [];
-                for (let i = 0; i < 5; i++) {
-                    newBoard.push(numbers.slice(i * 5, (i + 1) * 5));
-                }
-                setBoard(newBoard);
-            }, []);
-
-            // Initial Load
             useEffect(() => {
-                if (setupMode === 'random' && gameState === 'setup') generateRandomBoard();
-            }, [setupMode, gameState, generateRandomBoard]);
+                if (setupMode === 'random' && gameState === 'setup') {
+                    setBoard(createRandomBoard());
+                }
+            }, [setupMode, gameState]);
 
             const resetGame = () => {
                 setGameState('setup');
                 setMarked(Array(5).fill(null).map(() => Array(5).fill(false)));
                 setCompletedLines(new Set());
-                if (setupMode === 'random') generateRandomBoard();
+                setBotWins(false);
+                setBotLines(0);
+                setTurn('player');
+                setLastAction('');
+                if (setupMode === 'random') setBoard(createRandomBoard());
+            };
+
+            const startGame = () => {
+                if (hasErrors) return;
+                if (gameMode === 'bot') {
+                    setBotBoard(createRandomBoard());
+                    setBotMarked(Array(5).fill(null).map(() => Array(5).fill(false)));
+                    setTurn('player');
+                    setLastAction('Your Turn! Pick a number.');
+                }
+                setGameState('playing');
             };
 
             const handleManualInput = (r, c, val) => {
@@ -268,129 +312,156 @@
                 setBoard(newBoard);
             };
 
-            const checkWin = (currentMarked) => {
-                const newLines = new Set();
-                // Rows & Cols
-                for (let i = 0; i < 5; i++) {
-                    if (currentMarked[i].every(Boolean)) newLines.add(`row-${i}`);
-                    if (currentMarked.every(row => row[i])) newLines.add(`col-${i}`);
-                }
-                // Diagonals
-                if (currentMarked.every((row, i) => row[i])) newLines.add('d1');
-                if (currentMarked.every((row, i) => row[4 - i])) newLines.add('d2');
-                
-                setCompletedLines(newLines);
-            };
-
             const toggleCell = (r, c) => {
-                if (gameState !== 'playing' || isWinner) return;
-                const newMarked = marked.map((row, ri) => row.map((val, ci) => (ri === r && ci === c ? !val : val)));
-                setMarked(newMarked);
-                checkWin(newMarked);
+                if (gameState !== 'playing' || isWinner || botWins) return;
+                
+                // Normal "Friend" mode logic
+                if (gameMode === 'friend') {
+                    const newMarked = marked.map((row, ri) => row.map((val, ci) => (ri === r && ci === c ? !val : val)));
+                    setMarked(newMarked);
+                    const res = calculateLines(newMarked);
+                    setCompletedLines(res.set);
+                    return;
+                }
+
+                // Bot Mode Logic - Player Turn
+                if (turn === 'player') {
+                    if (marked[r][c]) return; // Already marked
+
+                    const pick = board[r][c];
+                    setLastAction(`You picked ${pick}`);
+
+                    // Mark Player
+                    const newPlayerMarked = markNumberOnBoard(board, marked, pick);
+                    setMarked(newPlayerMarked);
+                    
+                    // Mark Bot
+                    const newBotMarked = markNumberOnBoard(botBoard, botMarked, pick);
+                    setBotMarked(newBotMarked);
+
+                    // Check Wins
+                    const playerResult = calculateLines(newPlayerMarked);
+                    setCompletedLines(playerResult.set);
+
+                    const botResult = calculateLines(newBotMarked);
+                    setBotLines(botResult.count);
+                    if (botResult.count >= 5) setBotWins(true);
+
+                    setTurn('bot');
+                }
             };
 
-            // --- Render ---
+            // Mini Bot Board Component
+            const MiniBotBoard = () => (
+                <div className="mb-4 w-full flex flex-col items-center animate-pop-in">
+                    <div className="flex gap-1 mb-2">
+                        {BINGO_LETTERS.map((letter, idx) => (
+                            <div key={idx} className={`w-5 h-5 flex items-center justify-center rounded-sm text-[10px] font-black transition-all ${idx < Math.min(botLines, 5) ? 'bg-red-500 text-white' : (theme === 'dark' ? 'bg-slate-800 text-slate-600' : 'bg-slate-200 text-slate-400')}`}>
+                                {letter}
+                            </div>
+                        ))}
+                    </div>
+                    <div className="grid grid-cols-5 gap-1 p-2 rounded-lg bg-black/10">
+                        {botMarked.map((row, rIdx) => row.map((isMarked, cIdx) => (
+                            <div key={`${rIdx}-${cIdx}`} className={`w-5 h-5 rounded-sm border transition-all duration-300 ${isMarked ? themeStyles.botGridMarked : themeStyles.botGridBase}`}></div>
+                        )))}
+                    </div>
+                    <div className={`text-[10px] font-bold mt-1 ${themeStyles.textSub} uppercase tracking-widest`}>BOT OPPONENT</div>
+                </div>
+            );
 
             return (
-                <div 
-                    className="min-h-screen flex flex-col items-center p-4 md:p-8 animate-gradient-bg theme-transition relative"
-                    style={{ backgroundImage: themeStyles.bgGradient }}
-                >
-                    {/* Music Toggle (Top Left) */}
-                    <button 
-                        onClick={toggleMusic}
-                        className={`fixed top-4 left-4 z-50 px-4 py-2 rounded-full font-bold text-sm shadow-lg transition-transform active:scale-95 ${theme === 'dark' ? 'bg-slate-800 text-purple-400' : 'bg-white text-indigo-500'}`}
-                    >
-                        {isMusicPlaying ? '🎵 ON' : '🔇 OFF'}
-                    </button>
+                <div className="min-h-screen flex flex-col items-center p-4 md:p-8 animate-gradient-bg theme-transition relative" style={{ backgroundImage: themeStyles.bgGradient }}>
+                    
+                    <button onClick={() => setIsMusicPlaying(!isMusicPlaying)} className={`fixed top-4 left-4 z-50 px-4 py-2 rounded-full font-bold text-sm shadow-lg ${theme === 'dark' ? 'bg-slate-800 text-purple-400' : 'bg-white text-indigo-500'}`}>{isMusicPlaying ? '🎵 ON' : '🔇 OFF'}</button>
+                    <button onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')} className={`fixed top-4 right-4 z-50 px-4 py-2 rounded-full font-bold text-sm shadow-lg ${theme === 'dark' ? 'bg-slate-800 text-yellow-400' : 'bg-white text-rose-500'}`}>{theme === 'dark' ? '☀️' : '🌙'}</button>
+                    
+                    {/* Rules Modal */}
+                    {showRules && <RulesModal onClose={() => setShowRules(false)} themeStyles={themeStyles} />}
 
-                    {/* Theme Toggle (Top Right) */}
-                    <button 
-                        onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}
-                        className={`fixed top-4 right-4 z-50 px-4 py-2 rounded-full font-bold text-sm shadow-lg transition-transform active:scale-95 ${theme === 'dark' ? 'bg-slate-800 text-yellow-400' : 'bg-white text-rose-500'}`}
-                    >
-                        {theme === 'dark' ? '☀️ DAY' : '🌙 NIGHT'}
-                    </button>
-
-                    {/* Victory Modal */}
                     {isWinner && (
                         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4 animate-pop cursor-default">
                             <ConfettiOverlay />
                             <div className={`glass-panel ${themeStyles.cardBg} border-4 ${theme === 'dark' ? 'border-yellow-400' : 'border-rose-500'} rounded-3xl p-10 max-w-sm w-full text-center shadow-2xl relative`}>
                                 <div className="text-7xl mb-4 animate-float">🏆</div>
-                                <h2 className={`text-5xl font-black ${theme === 'dark' ? 'text-yellow-400' : 'text-rose-600'} mb-2 tracking-tighter uppercase italic`}>BINGO!</h2>
-                                <p className={`text-lg font-medium mb-8 ${themeStyles.textSub}`}>Victory is yours!</p>
-                                <button 
-                                    onClick={resetGame} 
-                                    className={`w-full py-4 rounded-2xl text-xl font-black shadow-xl active:scale-95 transition-all ${themeStyles.buttonPrimary}`}
-                                >
-                                    PLAY AGAIN
-                                </button>
+                                <h2 className={`text-5xl font-black ${theme === 'dark' ? 'text-yellow-400' : 'text-rose-600'} mb-2 tracking-tighter uppercase italic`}>VICTORY!</h2>
+                                <button onClick={resetGame} className={`w-full py-4 rounded-2xl text-xl font-black shadow-xl ${themeStyles.buttonPrimary}`}>PLAY AGAIN</button>
                             </div>
                         </div>
                     )}
 
-                    {/* Main Card */}
-                    <div className={`w-full max-w-md glass-panel ${themeStyles.cardBg} rounded-[2.5rem] shadow-2xl overflow-hidden transition-all duration-300 relative z-10 ${isWinner ? 'scale-95 opacity-50 blur-sm pointer-events-none' : ''}`}>
-                        
-                        {/* Header */}
-                        <div className="p-8 text-center bg-gradient-to-br from-white/10 to-transparent">
-                            <h1 className={`text-4xl font-black tracking-[0.3em] mb-8 italic drop-shadow-md ${theme === 'dark' ? 'text-white' : 'text-slate-800'}`}>BINGO</h1>
-                            <div className="flex justify-between gap-2">
-                                {BINGO_LETTERS.map((letter, idx) => (
-                                    <div 
-                                        key={idx}
-                                        className={`w-12 h-12 flex items-center justify-center rounded-xl text-2xl font-black border-b-4 transition-all duration-300 ${idx < lettersStruckCount ? themeStyles.headerLetterActive : themeStyles.headerLetterInactive}`}
-                                    >
-                                        {letter}
-                                    </div>
-                                ))}
+                    {botWins && !isWinner && (
+                        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 animate-pop cursor-default">
+                            <div className={`glass-panel bg-red-950/90 border-4 border-red-600 rounded-3xl p-10 max-w-sm w-full text-center shadow-2xl relative`}>
+                                <div className="text-7xl mb-4 animate-bounce-float">🤖</div>
+                                <h2 className="text-5xl font-black text-red-500 mb-2 tracking-tighter uppercase italic">DEFEAT</h2>
+                                <p className="text-red-200 mb-8 font-medium">The Bot got Bingo first!</p>
+                                <button onClick={resetGame} className="w-full py-4 rounded-2xl text-xl font-black shadow-xl bg-red-600 hover:bg-red-500 text-white">TRY AGAIN</button>
                             </div>
                         </div>
+                    )}
 
-                        {/* Game Area */}
-                        <div className="p-8 pt-2">
+                    <div className={`w-full max-w-md glass-panel ${themeStyles.cardBg} rounded-[2.5rem] shadow-2xl overflow-hidden transition-all duration-300 relative z-10 ${isWinner || botWins ? 'scale-95 opacity-50 blur-sm pointer-events-none' : ''}`}>
+                        
+                        <div className="p-6 text-center bg-gradient-to-br from-white/10 to-transparent">
+                            {/* Mini Bot Board */}
+                            {gameState === 'playing' && gameMode === 'bot' && <MiniBotBoard />}
+
+                            {gameState === 'setup' && <h1 className={`text-4xl font-black tracking-[0.3em] mb-4 italic drop-shadow-md ${theme === 'dark' ? 'text-white' : 'text-slate-800'}`}>BINGO</h1>}
+                            
+                            {/* Player Bingo Letters */}
+                            <div className="flex justify-between gap-2">
+                                {BINGO_LETTERS.map((letter, idx) => (
+                                    <div key={idx} className={`w-12 h-12 flex items-center justify-center rounded-xl text-2xl font-black border-b-4 transition-all duration-300 ${idx < lettersStruckCount ? themeStyles.headerLetterActive : themeStyles.headerLetterInactive}`}>{letter}</div>
+                                ))}
+                            </div>
+
+                            {/* Status Text */}
+                            {gameState === 'playing' && gameMode === 'bot' && (
+                                <div className={`mt-4 text-xs font-bold uppercase tracking-widest ${turn === 'player' ? 'text-green-400 animate-pulse' : 'text-amber-400'}`}>
+                                    {lastAction && <div className="mb-1 opacity-70">{lastAction}</div>}
+                                    {turn === 'player' ? "YOUR TURN" : "BOT'S TURN"}
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="p-8 pt-0">
                             {gameState === 'setup' ? (
-                                <div className="space-y-8">
-                                    {/* Setup Controls */}
+                                <div className="space-y-6">
+                                    {/* Setup Mode Toggle */}
                                     <div className={`flex p-1.5 rounded-2xl ${theme === 'dark' ? 'bg-black/30' : 'bg-slate-100'}`}>
-                                        <button onClick={() => { setSetupMode('random'); generateRandomBoard(); }} className={`flex-1 py-3 rounded-xl text-xs font-black tracking-widest transition-all ${setupMode === 'random' ? themeStyles.buttonPrimary + ' shadow-lg' : themeStyles.textSub}`}>RANDOM</button>
-                                        <button onClick={() => { setSetupMode('manual'); setBoard(Array(5).fill(null).map(() => Array(5).fill(''))); }} className={`flex-1 py-3 rounded-xl text-xs font-black tracking-widest transition-all ${setupMode === 'manual' ? themeStyles.buttonPrimary + ' shadow-lg' : themeStyles.textSub}`}>MANUAL</button>
+                                        <button onClick={() => setSetupMode('random')} className={`flex-1 py-3 rounded-xl text-xs font-black tracking-widest ${setupMode === 'random' ? themeStyles.buttonPrimary + ' shadow-lg' : themeStyles.textSub}`}>RANDOM</button>
+                                        <button onClick={() => { setSetupMode('manual'); setBoard(Array(5).fill(null).map(() => Array(5).fill(''))); }} className={`flex-1 py-3 rounded-xl text-xs font-black tracking-widest ${setupMode === 'manual' ? themeStyles.buttonPrimary + ' shadow-lg' : themeStyles.textSub}`}>MANUAL</button>
                                     </div>
 
                                     {/* Input Grid */}
                                     <div className="grid grid-cols-5 gap-2.5">
                                         {board.map((row, rIdx) => row.map((cell, cIdx) => (
                                             <div key={`${rIdx}-${cIdx}`} className="aspect-square">
-                                                <input 
-                                                    type="text" 
-                                                    inputMode="numeric"
-                                                    value={cell}
-                                                    disabled={setupMode === 'random'}
-                                                    onChange={(e) => handleManualInput(rIdx, cIdx, e.target.value)}
-                                                    className={`w-full h-full text-center font-black text-xl rounded-xl border-2 outline-none transition-all ${setupMode === 'random' ? themeStyles.gridBase + ' opacity-60' : (getCellErrors()[rIdx][cIdx] && cell !== '' ? 'bg-red-500/20 border-red-500 text-red-500' : themeStyles.gridBase + ' focus:border-current')}`}
-                                                    placeholder="•"
-                                                />
+                                                <input type="text" inputMode="numeric" value={cell} disabled={setupMode === 'random'} onChange={(e) => { const clean = e.target.value.replace(/\D/g, '').slice(0, 2); setBoard(board.map((row, ri) => row.map((c, ci) => (ri === rIdx && ci === cIdx ? clean : c)))); }} className={`w-full h-full text-center font-black text-xl rounded-xl border-2 outline-none transition-all ${setupMode === 'random' ? themeStyles.gridBase + ' opacity-60' : (getCellErrors()[rIdx][cIdx] && cell !== '' ? 'bg-red-500/20 border-red-500 text-red-500' : themeStyles.gridBase + ' focus:border-current')}`} placeholder="•" />
                                             </div>
                                         )))}
                                     </div>
 
-                                    <button 
-                                        onClick={() => !hasErrors && setGameState('playing')} 
-                                        disabled={hasErrors}
-                                        className={`w-full py-5 rounded-2xl text-xl font-black tracking-widest shadow-xl active:scale-95 transition-all ${hasErrors ? 'bg-slate-500/20 text-slate-400 cursor-not-allowed' : themeStyles.buttonPrimary}`}
-                                    >
-                                        START
-                                    </button>
+                                    {/* Game Mode Toggle */}
+                                    <div className="space-y-2">
+                                        <div className={`flex p-1.5 rounded-2xl ${theme === 'dark' ? 'bg-black/30' : 'bg-slate-100'}`}>
+                                            <button onClick={() => setGameMode('friend')} className={`flex-1 py-3 rounded-xl text-xs font-black tracking-widest ${gameMode === 'friend' ? themeStyles.buttonPrimary + ' shadow-lg' : themeStyles.textSub}`}>👥 FRIENDS</button>
+                                            <button onClick={() => setGameMode('bot')} className={`flex-1 py-3 rounded-xl text-xs font-black tracking-widest ${gameMode === 'bot' ? themeStyles.buttonPrimary + ' shadow-lg' : themeStyles.textSub}`}>🤖 BOT</button>
+                                        </div>
+                                        <button onClick={() => setShowRules(true)} className={`w-full text-[10px] font-bold uppercase tracking-widest opacity-60 hover:opacity-100 ${themeStyles.textSub}`}>How to Play?</button>
+                                    </div>
+
+                                    <button onClick={startGame} disabled={hasErrors} className={`w-full py-5 rounded-2xl text-xl font-black tracking-widest shadow-xl active:scale-95 transition-all ${hasErrors ? 'bg-slate-500/20 text-slate-400 cursor-not-allowed' : themeStyles.buttonPrimary}`}>START GAME</button>
                                 </div>
                             ) : (
-                                <div className="space-y-10">
+                                <div className="space-y-6">
                                     {/* Playing Grid */}
-                                    <div className="grid grid-cols-5 gap-2.5">
+                                    <div className={`grid grid-cols-5 gap-2.5 transition-opacity ${gameMode === 'bot' && turn === 'bot' ? 'opacity-50 pointer-events-none' : ''}`}>
                                         {board.map((row, rIdx) => row.map((cell, cIdx) => (
                                             <button 
-                                                key={`${rIdx}-${cIdx}`}
-                                                onClick={() => toggleCell(rIdx, cIdx)}
+                                                key={`${rIdx}-${cIdx}`} 
+                                                onClick={() => toggleCell(rIdx, cIdx)} 
                                                 className={`relative aspect-square rounded-xl text-xl font-black transition-all border-b-4 active:border-b-0 active:translate-y-1 ${marked[rIdx][cIdx] ? themeStyles.gridMarked + ' scale-95' : themeStyles.gridBase}`}
                                             >
                                                 {cell}
@@ -399,21 +470,24 @@
                                         )))}
                                     </div>
 
-                                    <button 
-                                        onClick={resetGame}
-                                        className={`w-full py-4 rounded-xl border-2 text-xs font-black tracking-[0.3em] active:scale-95 transition-all ${theme === 'dark' ? 'border-white/10 text-slate-400 hover:text-white' : 'border-slate-200 text-slate-400 hover:text-slate-600'}`}
-                                    >
-                                        RESET BOARD
-                                    </button>
+                                    {/* Bot Trigger Button */}
+                                    {gameMode === 'bot' && (
+                                        <button 
+                                            onClick={triggerBotMove}
+                                            disabled={turn === 'player'}
+                                            className={`w-full py-4 rounded-xl text-lg font-black tracking-wider shadow-lg active:scale-95 transition-all ${turn === 'player' ? themeStyles.buttonDisabled : themeStyles.buttonPrimary}`}
+                                        >
+                                            {turn === 'player' ? "YOUR TURN (PICK A #)" : "BOT'S TURN (CLICK ME)"}
+                                        </button>
+                                    )}
+
+                                    <button onClick={resetGame} className={`w-full py-3 rounded-xl border-2 text-xs font-black tracking-[0.2em] active:scale-95 transition-all opacity-70 hover:opacity-100 ${theme === 'dark' ? 'border-white/10 text-slate-400' : 'border-slate-200 text-slate-500'}`}>RESET BOARD</button>
                                 </div>
                             )}
                         </div>
 
-                        {/* Footer Status */}
                         <div className={`p-4 text-center border-t ${theme === 'dark' ? 'border-white/5 bg-black/20' : 'border-slate-100 bg-slate-50/50'}`}>
-                            <p className={`text-[10px] font-black tracking-[0.4em] ${themeStyles.textSub}`}>
-                                {completedLines.size} / 5 LINES
-                            </p>
+                            <p className={`text-[10px] font-black tracking-[0.4em] ${themeStyles.textSub}`}>{completedLines.size} / 5 LINES</p>
                         </div>
                     </div>
                 </div>

@@ -113,6 +113,7 @@
                         </div>
                         <div className="bg-white/5 p-4 rounded-2xl border border-indigo-500/30">
                             <h3 className={`text-lg font-bold mb-2 ${themeStyles.textMain}`}>🌐 ONLINE PVP</h3>
+                            <p className="text-red-400 font-bold mb-2 animate-pulse uppercase tracking-widest text-[10px]">STILL IN DEVELOPMENT ⚠️</p>
                             <p>Host a room or join with a code to play against a real person anywhere.</p>
                             { !isOnlineSupported && <p className="text-red-500 font-bold mt-2 text-xs">⚠️ Firebase config missing.</p>}
                         </div>
@@ -219,8 +220,8 @@
             const [isProcessingMove, setIsProcessingMove] = useState(false);
 
             // REF PATTERN TO FIX ONLINE SYNC STALE CLOSURES
-            const stateRef = useRef({ board, marked, turn, playerRole, gameMode, onlineStatus, opponentMarked });
-            useEffect(() => { stateRef.current = { board, marked, turn, playerRole, gameMode, onlineStatus, opponentMarked }; });
+            const stateRef = useRef({ board, marked, turn, playerRole, gameMode, onlineStatus, opponentMarked, gameState });
+            useEffect(() => { stateRef.current = { board, marked, turn, playerRole, gameMode, onlineStatus, opponentMarked, gameState }; });
 
             const lettersStruckCount = Math.min(completedLines.size, 5);
             const isWinner = lettersStruckCount >= 5 && !botWins; 
@@ -267,9 +268,11 @@
                     const data = doc.data();
                     const currentState = stateRef.current;
 
-                    if (data.status === 'playing' && gameState !== 'playing') setGameState('playing');
+                    if (data.status === 'playing' && currentState.gameState !== 'playing') {
+                        setGameState('playing');
+                    }
                     
-                    if (data.turn !== currentState.turn) {
+                    if (data.turn && data.turn !== currentState.turn) {
                          setTurn(data.turn);
                          if (data.turn === currentState.playerRole) setIsProcessingMove(false);
                     }
@@ -444,7 +447,7 @@
             };
 
             const hostOnline = async () => {
-                if (!isOnlineSupported || !user) { alert("Please deploy to Vercel to use Online Mode (Auth required)."); return; }
+                if (!isOnlineSupported || !user) { alert("Deployment to Vercel/Netlify required for Online Mode."); return; }
                 const code = Math.floor(100000 + Math.random() * 900000).toString();
                 setCurrentRoomId(code); setRoomCode(code); setPlayerRole('host'); setOnlineStatus('hosting');
                 await db.doc(`artifacts/${appId}/public/data/rooms/${code}`).set({
@@ -452,7 +455,7 @@
                 });
             };
             const joinOnline = async () => {
-                if (!isOnlineSupported || !user) { alert("Please deploy to Vercel to use Online Mode (Auth required)."); return; }
+                if (!isOnlineSupported || !user) { alert("Deployment to Vercel/Netlify required for Online Mode."); return; }
                 const ref = db.doc(`artifacts/${appId}/public/data/rooms/${roomCode}`);
                 const d = await ref.get();
                 if (d.exists && d.data().status === 'waiting') {
@@ -499,7 +502,7 @@
             return (
                 <div className="min-h-screen flex flex-col items-center p-4 md:p-8 animate-gradient-bg theme-transition relative" style={{ backgroundImage: themeStyles.bgGradient }}>
                     
-                    {/* Status Dot */}
+                    {/* RESTORED STATUS DOT */}
                     <div className={`fixed top-6 left-28 z-50 w-3 h-3 rounded-full transition-colors duration-500 ${isOnlineSupported && user ? 'bg-emerald-500 shadow-[0_0_10px_#10b981]' : 'bg-red-500'}`} title={isOnlineSupported && user ? "Online Ready" : "Offline / Auth Missing"}></div>
 
                     <div className="w-full max-w-md flex justify-between mb-4">
@@ -509,12 +512,6 @@
                             <button onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')} className={`p-3 rounded-2xl glass-panel text-[10px] font-black uppercase tracking-widest hover:bg-white/10 transition-all ${theme === 'dark' ? 'text-white' : 'text-slate-900 border-slate-300'}`}>{theme === 'dark' ? '☀️' : '🌙'}</button>
                         </div>
                     </div>
-
-                    {error && (
-                        <div className="fixed top-20 left-1/2 -translate-x-1/2 bg-red-500 text-white px-4 py-2 rounded-xl font-bold text-xs shadow-xl z-[100] animate-pop-in">
-                            {error} <button onClick={() => setError('')} className="ml-2 opacity-50 hover:opacity-100">✕</button>
-                        </div>
-                    )}
 
                     <div className={`w-full max-w-md glass-panel ${themeStyles.cardBg} rounded-[2.5rem] shadow-2xl overflow-hidden transition-all duration-300 relative z-10 ${isWinner || hasOpponentWon ? 'scale-95 opacity-50 blur-sm' : ''}`}>
                         
@@ -548,6 +545,11 @@
 
                                     {gameMode === 'online' ? (
                                         <div className="space-y-4 animate-pop-in">
+                                            {/* ADDED DEVELOPMENT NOTICE */}
+                                            <div className="bg-red-500/10 border border-red-500/30 p-3 rounded-xl text-center">
+                                                <p className="text-red-500 font-black text-[10px] uppercase tracking-widest animate-pulse">Online Mode: Still in Development ⚠️</p>
+                                            </div>
+
                                             {onlineStatus === 'idle' ? (
                                                 <div className="space-y-4">
                                                     <button onClick={hostOnline} className={`w-full py-4 rounded-xl font-bold ${themeStyles.buttonPrimary}`}>HOST ROOM</button>

@@ -9,54 +9,71 @@
     <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Firebase Libraries -->
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore-compat.js"></script>
+
     <style>
         body { -webkit-font-smoothing: antialiased; margin: 0; padding: 0; overflow-x: hidden; font-family: system-ui, -apple-system, sans-serif; }
         
-        /* High-Performance Animations */
-        @keyframes gradientShift {
-          0% { background-position: 0% 50%; }
-          50% { background-position: 100% 50%; }
-          100% { background-position: 0% 50%; }
-        }
-        .animate-gradient-bg {
-            background-size: 300% 300%;
-            animation: gradientShift 15s ease infinite;
-            will-change: background-position;
-        }
+        @keyframes gradientShift { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+        .animate-gradient-bg { background-size: 300% 300%; animation: gradientShift 15s ease infinite; will-change: background-position; }
         
         @keyframes popIn { 0% { transform: scale(0.9); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
         .animate-pop-in { animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
-
-        @keyframes bounceFloat {
-          0%, 100% { transform: translateY(0); }
-          50% { transform: translateY(-10px); }
-        }
+        
+        @keyframes bounceFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
         .animate-bounce-float { animation: bounceFloat 3s ease-in-out infinite; }
-
-        @keyframes confettiFall {
-          0% { transform: translate3d(0, -10vh, 0) rotate(0deg); opacity: 1; }
-          100% { transform: translate3d(0, 110vh, 0) rotate(360deg); opacity: 0; }
-        }
+        
+        @keyframes confettiFall { 0% { transform: translate3d(0, -10vh, 0) rotate(0deg); opacity: 1; } 100% { transform: translate3d(0, 110vh, 0) rotate(360deg); opacity: 0; } }
         .animate-confetti-fall { animation: confettiFall 3s linear infinite; }
 
-        .glass-panel {
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.15);
-        }
-
+        .glass-panel { backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.15); }
         .theme-transition { transition: background-image 0.5s ease, background-color 0.5s ease, color 0.3s ease; }
-        
         #root { min-height: 100vh; }
+        
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 10px; }
     </style>
 </head>
 <body class="theme-transition">
     <div id="root"></div>
 
     <script type="text/babel">
+        // --- FIREBASE CONFIGURATION ---
+        const customFirebaseConfig = {
+            apiKey: "AIzaSyDXAQF_cGP1Z0Sg0nQfJNd9lNT9SWvqJy4",
+            authDomain: "bingo-buddy-63ceb.firebaseapp.com",
+            projectId: "bingo-buddy-63ceb",
+            storageBucket: "bingo-buddy-63ceb.firebasestorage.app",
+            messagingSenderId: "561416623126",
+            appId: "1:561416623126:web:52a0c79a47cbd290ef1137"
+        };
+
+        let db = null;
+        let auth = null;
+        let isOnlineSupported = false;
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'bingo-buddy';
+
+        try {
+            const configToUse = (customFirebaseConfig.apiKey) ? customFirebaseConfig : (typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null);
+            if (configToUse) {
+                if (!firebase.apps.length) firebase.initializeApp(configToUse);
+                db = firebase.firestore();
+                auth = firebase.auth();
+                isOnlineSupported = true;
+            } else {
+                console.log("Offline Mode");
+            }
+        } catch (e) { console.log("Firebase init skipped"); }
+
         const { useState, useEffect, useCallback, useMemo, useRef } = React;
         const BINGO_LETTERS = ['B', 'I', 'N', 'G', 'O'];
         const MUSIC_URL = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3";
+
+        // --- COMPONENTS ---
 
         const ConfettiOverlay = () => {
             const pieces = useMemo(() => Array.from({ length: 40 }).map((_, i) => ({
@@ -69,7 +86,7 @@
             return (
                 <div className="fixed inset-0 pointer-events-none z-50 overflow-hidden">
                     {pieces.map(p => (
-                        <div key={p.id} className="confetti" style={{ left: p.left, animationDelay: p.delay, backgroundColor: p.color, width: p.size, height: p.size }} />
+                        <div key={p.id} className="animate-confetti-fall absolute" style={{ left: p.left, animationDelay: p.delay, backgroundColor: p.color, width: p.size, height: p.size }} />
                     ))}
                 </div>
             );
@@ -78,64 +95,150 @@
         const RulesModal = ({ onClose, themeStyles }) => (
             <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 animate-pop-in">
                 <div className={`glass-panel ${themeStyles.cardBg} border-2 border-white/20 rounded-3xl p-8 max-w-md w-full relative max-h-[90vh] overflow-y-auto`}>
-                    <h2 className={`text-3xl font-black mb-6 ${themeStyles.textMain}`}>HOW TO PLAY</h2>
-                    
+                    <h2 className={`text-3xl font-black mb-6 ${themeStyles.textMain} italic tracking-tighter`}>RULES</h2>
                     <div className={`space-y-6 text-sm ${themeStyles.textSub} font-medium`}>
-                        <div>
-                            <h3 className={`text-lg font-bold mb-2 ${themeStyles.textMain}`}>👥 Friend Mode (Multiplayer)</h3>
-                            <p className="mb-2">Perfect for video calls. You can play in two ways:</p>
-                            <ul className="list-disc list-inside space-y-2 opacity-90 pl-1">
-                                <li><strong>Option 1: Classic Caller</strong><br/>One person (or a 3rd party app) acts as the "Caller" and shouts random numbers. Everyone marks their own board.</li>
-                                <li><strong>Option 2: Tactical Battle (1v1, 5v5, etc)</strong><br/>Take turns! Player A picks a number, and <em>everyone</em> marks it. Then Player B picks a number, and <em>everyone</em> marks it. Repeat until someone gets 5 lines!</li>
+                        <div className="bg-white/5 p-4 rounded-2xl">
+                            <h3 className={`text-lg font-bold mb-2 ${themeStyles.textMain}`}>👥 FRIEND MODE</h3>
+                            <ul className="list-disc list-inside space-y-2 pl-1">
+                                <li><strong>Classic:</strong> Use the Caller Tool. Everyone marks their own board.</li>
+                                <li><strong>1v1 Battle:</strong> Take turns picking numbers. Every number picked is marked on BOTH boards.</li>
                             </ul>
                         </div>
-                        
-                        <div className="border-t border-white/10 pt-4">
-                            <h3 className={`text-lg font-bold mb-2 ${themeStyles.textMain}`}>🤖 Bot Mode (Solo Duel)</h3>
-                            <p className="mb-2">A strategic 1v1 duel against the computer.</p>
-                            <ul className="list-disc list-inside space-y-1 opacity-90 pl-1">
-                                <li><strong>Your Turn:</strong> Click any number on your board. It gets marked on yours AND the Bot's board.</li>
-                                <li><strong>Bot's Turn:</strong> Click "Bot Move". The Bot picks a number. It gets marked on its board AND yours.</li>
-                                <li><strong>Goal:</strong> Complete 5 lines before the Bot does.</li>
+                        <div className="bg-white/5 p-4 rounded-2xl">
+                            <h3 className={`text-lg font-bold mb-2 ${themeStyles.textMain}`}>🤖 BOT MODE</h3>
+                            <ul className="list-disc list-inside space-y-2 pl-1">
+                                <li>The Bot plays automatically after you move.</li>
+                                <li>Hard mode uses strategy to complete lines faster!</li>
                             </ul>
+                        </div>
+                        <div className="bg-white/5 p-4 rounded-2xl border border-indigo-500/30">
+                            <h3 className={`text-lg font-bold mb-2 ${themeStyles.textMain}`}>🌐 ONLINE PVP</h3>
+                            <p>Host a room or join with a code to play against a real person anywhere.</p>
+                            { !isOnlineSupported && <p className="text-red-500 font-bold mt-2 text-xs">⚠️ Firebase config missing.</p>}
                         </div>
                     </div>
-
-                    <button onClick={onClose} className={`w-full mt-8 py-3 rounded-xl font-bold text-lg ${themeStyles.buttonPrimary} shadow-lg`}>
-                        GOT IT
-                    </button>
+                    <button onClick={onClose} className={`w-full mt-8 py-4 rounded-2xl font-black text-lg ${themeStyles.buttonPrimary} shadow-lg active:scale-95 transition-all`}>GOT IT</button>
                 </div>
             </div>
         );
 
+        const CallerTool = ({ onClose, themeStyles, theme, calledNumbers, setCalledNumbers, currentCallerNumber, setCurrentCallerNumber }) => {
+            const drawNumber = () => {
+                const available = Array.from({ length: 25 }, (_, i) => i + 1).filter(n => !calledNumbers.includes(n));
+                if (available.length === 0) return;
+                const next = available[Math.floor(Math.random() * available.length)];
+                setCalledNumbers(prev => [next, ...prev]);
+                setCurrentCallerNumber(next);
+            };
+
+            const resetCaller = () => {
+                setCalledNumbers([]);
+                setCurrentCallerNumber(null);
+            };
+
+            return (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 animate-pop-in">
+                    <div className={`glass-panel ${themeStyles.cardBg} border-2 border-white/20 rounded-3xl p-8 max-w-md w-full relative flex flex-col items-center`}>
+                        <button onClick={onClose} className={`absolute top-4 right-4 text-xs font-bold uppercase tracking-widest ${themeStyles.textSub} hover:opacity-100 opacity-60`}>Close</button>
+                        
+                        <h2 className={`text-2xl font-black mb-6 ${themeStyles.textMain} tracking-widest`}>CALLER TOOL</h2>
+                        
+                        <div className={`w-32 h-32 rounded-full flex items-center justify-center text-6xl font-black border-8 shadow-2xl mb-8 ${theme === 'dark' ? 'bg-indigo-600 border-indigo-400 text-white' : 'bg-white border-rose-300 text-rose-600'}`}>
+                            {currentCallerNumber || "#"}
+                        </div>
+
+                        <button 
+                            onClick={drawNumber} 
+                            disabled={calledNumbers.length >= 25}
+                            className={`w-full py-4 rounded-xl text-xl font-black shadow-lg active:scale-95 transition-all mb-4 ${calledNumbers.length >= 25 ? themeStyles.buttonDisabled : themeStyles.buttonPrimary}`}
+                        >
+                            {calledNumbers.length >= 25 ? "ALL DRAWN" : "DRAW NUMBER"}
+                        </button>
+
+                        <div className="w-full">
+                            <div className={`text-xs font-bold uppercase tracking-widest mb-2 ${themeStyles.textSub}`}>History ({calledNumbers.length}/25)</div>
+                            <div className="flex flex-wrap gap-2 justify-center max-h-32 overflow-y-auto p-2 bg-black/20 rounded-xl">
+                                {calledNumbers.map((num, idx) => (
+                                    <span key={num} className={`inline-flex items-center justify-center w-8 h-8 rounded-lg text-xs font-bold ${idx === 0 ? 'bg-amber-400 text-black ring-2 ring-white' : (theme === 'dark' ? 'bg-slate-700 text-white' : 'bg-slate-200 text-slate-700')}`}>
+                                        {num}
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
+                        
+                        <button onClick={resetCaller} className={`mt-6 text-xs font-bold uppercase tracking-widest opacity-50 hover:opacity-100 ${themeStyles.textSub}`}>Reset Caller History</button>
+                    </div>
+                </div>
+            );
+        };
+
+        // --- MAIN APP ---
+
         const App = () => {
-            const [gameState, setGameState] = useState('setup');
-            const [setupMode, setSetupMode] = useState('random');
+            const createRandomBoard = () => {
+                const nums = Array.from({length: 25}, (_, i) => (i+1).toString());
+                for (let i = 24; i > 0; i--) { const j = Math.floor(Math.random()*(i+1)); [nums[i], nums[j]] = [nums[j], nums[i]]; }
+                const b = []; for (let i = 0; i < 5; i++) b.push(nums.slice(i*5, (i+1)*5));
+                return b;
+            };
+
+            const [user, setUser] = useState(null);
+            const [gameState, setGameState] = useState('setup'); 
             const [gameMode, setGameMode] = useState('friend'); 
-            const [botDifficulty, setBotDifficulty] = useState('easy'); // 'easy' or 'hard'
+            const [setupMode, setSetupMode] = useState('random');
             const [theme, setTheme] = useState('dark');
-            const [board, setBoard] = useState(Array(5).fill(null).map(() => Array(5).fill('')));
+            const [showRules, setShowRules] = useState(false);
+            const [showCaller, setShowCaller] = useState(false);
+
+            // Initialize board immediately
+            const [board, setBoard] = useState(() => createRandomBoard());
             const [marked, setMarked] = useState(Array(5).fill(null).map(() => Array(5).fill(false)));
             const [completedLines, setCompletedLines] = useState(new Set());
-            const [isMusicPlaying, setIsMusicPlaying] = useState(false);
-            const [showRules, setShowRules] = useState(false);
             
-            // Bot State
-            const [botBoard, setBotBoard] = useState([]);
-            const [botMarked, setBotMarked] = useState(Array(5).fill(null).map(() => Array(5).fill(false)));
-            const [botWins, setBotWins] = useState(false);
-            const [botLines, setBotLines] = useState(0);
-            
-            // Turn State for Bot Mode
-            const [turn, setTurn] = useState('player'); // 'player' or 'bot'
-            const [lastAction, setLastAction] = useState('');
+            // Persistent Caller State
+            const [calledNumbers, setCalledNumbers] = useState([]);
+            const [currentCallerNumber, setCurrentCallerNumber] = useState(null);
 
+            // Bot/Online State
+            const [opponentMarked, setOpponentMarked] = useState(Array(5).fill(null).map(() => Array(5).fill(false)));
+            const [opponentLines, setOpponentLines] = useState(0);
+            const [botBoard, setBotBoard] = useState([]);
+            const [botDifficulty, setBotDifficulty] = useState('easy');
+            const [botWins, setBotWins] = useState(false);
+
+            const [turn, setTurn] = useState('player'); 
+            const [lastAction, setLastAction] = useState('');
+            const [error, setError] = useState('');
+            const [isMusicPlaying, setIsMusicPlaying] = useState(false);
             const audioRef = useRef(null);
 
-            const lettersStruckCount = Math.min(completedLines.size, 5);
-            const isWinner = lettersStruckCount >= 5;
+            const [roomCode, setRoomCode] = useState('');
+            const [currentRoomId, setCurrentRoomId] = useState(null);
+            const [onlineStatus, setOnlineStatus] = useState('idle'); 
+            const [playerRole, setPlayerRole] = useState(null); 
+            const [isProcessingMove, setIsProcessingMove] = useState(false);
 
-            // Audio Effect
+            // REF PATTERN TO FIX ONLINE SYNC STALE CLOSURES
+            const stateRef = useRef({ board, marked, turn, playerRole, gameMode, onlineStatus, opponentMarked });
+            useEffect(() => { stateRef.current = { board, marked, turn, playerRole, gameMode, onlineStatus, opponentMarked }; });
+
+            const lettersStruckCount = Math.min(completedLines.size, 5);
+            const isWinner = lettersStruckCount >= 5 && !botWins; 
+            const hasOpponentWon = opponentLines >= 5 || botWins;
+
+            useEffect(() => {
+                if (isOnlineSupported && auth) {
+                    const initAuth = async () => {
+                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                            await auth.signInWithCustomToken(__initial_auth_token).catch(() => auth.signInAnonymously());
+                        } else { await auth.signInAnonymously(); }
+                    };
+                    initAuth();
+                    const unsubscribe = auth.onAuthStateChanged(setUser);
+                    return () => unsubscribe();
+                }
+            }, []);
+
             useEffect(() => {
                 audioRef.current = new Audio(MUSIC_URL);
                 audioRef.current.loop = true;
@@ -145,403 +248,409 @@
 
             useEffect(() => {
                 if (audioRef.current) {
-                    if (isMusicPlaying) audioRef.current.play().catch(() => {});
-                    else audioRef.current.pause();
+                    if (isMusicPlaying) {
+                        audioRef.current.play().catch(e => console.log("Audio play prevented:", e));
+                    } else {
+                        audioRef.current.pause();
+                    }
                 }
             }, [isMusicPlaying]);
 
-            // Helper to generate a random 1-25 board
-            const createRandomBoard = () => {
-                const numbers = Array.from({ length: 25 }, (_, i) => (i + 1).toString());
-                for (let i = numbers.length - 1; i > 0; i--) {
-                    const j = Math.floor(Math.random() * (i + 1));
-                    [numbers[i], numbers[j]] = [numbers[j], numbers[i]];
-                }
-                const newBoard = [];
-                for (let i = 0; i < 5; i++) newBoard.push(numbers.slice(i * 5, (i + 1) * 5));
-                return newBoard;
-            };
+            // ONLINE LISTENER
+            useEffect(() => {
+                if (!isOnlineSupported || !user || !currentRoomId || gameMode !== 'online') return;
+                
+                const roomRef = db.doc(`artifacts/${appId}/public/data/rooms/${currentRoomId}`);
+                
+                const unsubscribe = roomRef.onSnapshot((doc) => {
+                    if (!doc.exists) return;
+                    const data = doc.data();
+                    const currentState = stateRef.current;
 
-            // Shared marking logic (Mark number X on a specific board)
-            const markNumberOnBoard = (targetBoard, targetMarked, number) => {
-                let newMarked = targetMarked.map(row => [...row]);
-                targetBoard.forEach((row, rIdx) => {
-                    row.forEach((cell, cIdx) => {
-                        if (cell === number) newMarked[rIdx][cIdx] = true;
-                    });
+                    if (data.status === 'playing' && gameState !== 'playing') setGameState('playing');
+                    
+                    if (data.turn !== currentState.turn) {
+                         setTurn(data.turn);
+                         if (data.turn === currentState.playerRole) setIsProcessingMove(false);
+                    }
+                    if (data.lastPick) setLastAction(`Opponent picked ${data.lastPick}`);
+
+                    const isHost = currentState.playerRole === 'host';
+                    if (isHost) {
+                        setOpponentMarked(data.guestMarked || Array(5).fill(null).map(() => Array(5).fill(false)));
+                        setOpponentLines(data.guestLines || 0);
+                        if (data.lastPickBy === 'guest') syncFromOpponent(data.lastPick);
+                    } else {
+                        setOpponentMarked(data.hostMarked || Array(5).fill(null).map(() => Array(5).fill(false)));
+                        setOpponentLines(data.hostLines || 0);
+                        if (data.lastPickBy === 'host') syncFromOpponent(data.lastPick);
+                        if (currentState.onlineStatus === 'hosting') setOnlineStatus('connected');
+                    }
+                }, (err) => {
+                    console.log("Sync error:", err);
+                    setError("Connection issue. Retrying...");
                 });
-                return newMarked;
+                return () => unsubscribe();
+            }, [user, currentRoomId, gameMode]); 
+
+            useEffect(() => {
+                if (gameState === 'playing' && gameMode === 'bot' && turn === 'bot' && !isWinner && !botWins) {
+                    const timer = setTimeout(triggerBotMove, 1000);
+                    return () => clearTimeout(timer);
+                }
+            }, [turn, gameState, gameMode, isWinner, botWins]);
+
+            const syncFromOpponent = (val) => {
+                setMarked(prev => {
+                    const currentBoard = stateRef.current.board;
+                    let changed = false;
+                    const next = prev.map((row, r) => row.map((v, c) => {
+                        if (currentBoard[r][c] === val && !v) {
+                            changed = true;
+                            return true;
+                        }
+                        return v;
+                    }));
+                    if (changed) setCompletedLines(calculateLines(next).set);
+                    return next;
+                });
             };
 
-            // Check Win helper
             const calculateLines = (currentMarked) => {
-                let lines = 0;
-                let lineSet = new Set();
-                // Rows
+                let lines = 0; let lineSet = new Set();
                 for (let i = 0; i < 5; i++) {
                     if (currentMarked[i].every(Boolean)) { lines++; lineSet.add(`row-${i}`); }
                     if (currentMarked.every(row => row[i])) { lines++; lineSet.add(`col-${i}`); }
                 }
-                // Diags
                 if (currentMarked.every((row, i) => row[i])) { lines++; lineSet.add('d1'); }
                 if (currentMarked.every((row, i) => row[4 - i])) { lines++; lineSet.add('d2'); }
                 return { count: lines, set: lineSet };
             };
 
-            // Bot Turn Logic
-            const triggerBotMove = () => {
-                if (isWinner || botWins || turn !== 'bot') return;
-
-                // Find all available numbers on Bot's board
-                let options = [];
-                botBoard.forEach((row, r) => {
-                    row.forEach((cell, c) => {
-                        if (!botMarked[r][c]) {
-                            options.push({ r, c, val: cell });
-                        }
-                    });
+            const markNumberOnBoard = (targetBoard, targetMarked, number) => {
+                let newMarked = targetMarked.map(row => [...row]);
+                targetBoard.forEach((row, rIdx) => {
+                    row.forEach((cell, cIdx) => { if (cell === number) newMarked[rIdx][cIdx] = true; });
                 });
+                return newMarked;
+            };
 
-                if (options.length === 0) return;
+            const startGame = () => {
+                if (getCellErrors().flat().some(e => e)) return;
+                if (gameMode === 'bot') {
+                    setBotBoard(createRandomBoard());
+                    setOpponentMarked(Array(5).fill(null).map(() => Array(5).fill(false)));
+                    setTurn('player');
+                }
+                setGameState('playing');
+            };
+
+            const resetGame = () => {
+                setGameState('setup');
+                setOnlineStatus('idle');
+                setCurrentRoomId(null);
+                setRoomCode('');
+                setMarked(Array(5).fill(null).map(() => Array(5).fill(false)));
+                setCompletedLines(new Set());
+                setOpponentLines(0);
+                setBotWins(false);
+                setTurn('player');
+                setLastAction('');
+                setIsProcessingMove(false);
+                setError('');
+                if (setupMode === 'random') setBoard(createRandomBoard());
+            };
+
+            const triggerBotMove = () => {
+                let options = [];
+                botBoard.forEach((row, r) => row.forEach((cell, c) => { if (!opponentMarked[r][c]) options.push({r, c, val: cell}); }));
+                if (!options.length) return;
 
                 let pick;
-
-                // --- DIFFICULTY LOGIC ---
                 if (botDifficulty === 'easy') {
-                    // EASY: Pure random selection
-                    const randomOption = options[Math.floor(Math.random() * options.length)];
-                    pick = randomOption.val;
+                    pick = options[Math.floor(Math.random() * options.length)].val;
                 } else {
-                    // HARD: Strategic AI (Prioritize lines)
-                    let bestPick = null;
-                    let maxScore = -1;
-
+                    let best = null; let max = -1;
                     options.forEach(opt => {
-                        let score = 0;
-                        const { r, c } = opt;
-                        const getLineScore = (count) => Math.pow(10, count);
-
-                        // Row
-                        let rowCount = 0;
-                        for(let k=0; k<5; k++) if(botMarked[r][k]) rowCount++;
-                        score += getLineScore(rowCount);
-
-                        // Col
-                        let colCount = 0;
-                        for(let k=0; k<5; k++) if(botMarked[k][c]) colCount++;
-                        score += getLineScore(colCount);
-
-                        // Diag 1
-                        if (r === c) {
-                            let d1Count = 0;
-                            for(let k=0; k<5; k++) if(botMarked[k][k]) d1Count++;
-                            score += getLineScore(d1Count);
-                        }
-
-                        // Diag 2
-                        if (r + c === 4) {
-                            let d2Count = 0;
-                            for(let k=0; k<5; k++) if(botMarked[k][4-k]) d2Count++;
-                            score += getLineScore(d2Count);
-                        }
-                        
-                        score += Math.random(); // Tie-breaker
-
-                        if (score > maxScore) {
-                            maxScore = score;
-                            bestPick = opt.val;
-                        }
+                        let score = 0; const {r, c} = opt;
+                        const lScore = (count) => Math.pow(10, count);
+                        let rC = 0; for(let k=0; k<5; k++) if(opponentMarked[r][k]) rC++; score += lScore(rC);
+                        let cC = 0; for(let k=0; k<5; k++) if(opponentMarked[k][c]) cC++; score += lScore(cC);
+                        if (r===c) { let d1=0; for(let k=0; k<5; k++) if(opponentMarked[k][k]) d1++; score += lScore(d1); }
+                        if (r+c===4) { let d2=0; for(let k=0; k<5; k++) if(opponentMarked[k][4-k]) d2++; score += lScore(d2); }
+                        score += Math.random();
+                        if (score > max) { max = score; best = opt.val; }
                     });
-                    pick = bestPick;
+                    pick = best;
                 }
 
                 setLastAction(`Bot picked ${pick}`);
+                const nextBotMarked = markNumberOnBoard(botBoard, opponentMarked, pick);
+                setOpponentMarked(nextBotMarked);
                 
-                // Mark on Bot Board
-                const newBotMarked = markNumberOnBoard(botBoard, botMarked, pick);
-                setBotMarked(newBotMarked);
-                
-                // Mark on Player Board
-                const newPlayerMarked = markNumberOnBoard(board, marked, pick);
-                setMarked(newPlayerMarked);
+                const nextPlayerMarked = markNumberOnBoard(board, marked, pick);
+                setMarked(nextPlayerMarked);
 
-                // Check Wins
-                const botResult = calculateLines(newBotMarked);
-                setBotLines(botResult.count);
-                if (botResult.count >= 5) setBotWins(true);
-
-                const playerResult = calculateLines(newPlayerMarked);
-                setCompletedLines(playerResult.set);
+                const botRes = calculateLines(nextBotMarked);
+                setOpponentLines(botRes.count);
+                if (botRes.count >= 5) setBotWins(true);
                 
+                setCompletedLines(calculateLines(nextPlayerMarked).set);
                 setTurn('player');
+            };
+
+            const toggleCell = async (r, c) => {
+                if (gameState !== 'playing' || isWinner || hasOpponentWon) return;
+                if (marked[r][c]) return;
+                
+                // Prevent multiple inputs during async ops
+                if (gameMode === 'online' && isProcessingMove) return;
+                
+                const val = board[r][c];
+
+                if (gameMode === 'online') {
+                    if (!isOnlineSupported) return;
+                    if (turn !== playerRole) return;
+                    
+                    setIsProcessingMove(true); // LOCK INPUT
+                    
+                    const next = marked.map((row, ri) => row.map((v, ci) => (ri===r && ci===c ? true : v)));
+                    setMarked(next);
+                    const res = calculateLines(next);
+                    setCompletedLines(res.set);
+                    const update = { turn: playerRole === 'host' ? 'guest' : 'host', lastPick: val, lastPickBy: playerRole };
+                    if (playerRole === 'host') { update.hostMarked = next; update.hostLines = res.count; }
+                    else { update.guestMarked = next; update.guestLines = res.count; }
+                    await db.doc(`artifacts/${appId}/public/data/rooms/${currentRoomId}`).update(update);
+                } else if (gameMode === 'bot') {
+                    if (turn !== 'player') return;
+                    setLastAction(`You picked ${val}`);
+                    const nextPlayer = marked.map((row, ri) => row.map((v, ci) => (ri===r && ci===c ? true : v)));
+                    setMarked(nextPlayer);
+                    setCompletedLines(calculateLines(nextPlayer).set);
+
+                    const nextBot = markNumberOnBoard(botBoard, opponentMarked, val);
+                    setOpponentMarked(nextBot);
+                    const botRes = calculateLines(nextBot);
+                    setOpponentLines(botRes.count);
+                    
+                    if (botRes.count >= 5) setBotWins(true);
+                    setTurn('bot');
+                } else {
+                    const next = marked.map((row, ri) => row.map((v, ci) => (ri===r && ci===c ? !v : v)));
+                    setMarked(next);
+                    setCompletedLines(calculateLines(next).set);
+                }
+            };
+
+            const hostOnline = async () => {
+                if (!isOnlineSupported || !user) { alert("Please deploy to Vercel to use Online Mode (Auth required)."); return; }
+                const code = Math.floor(100000 + Math.random() * 900000).toString();
+                setCurrentRoomId(code); setRoomCode(code); setPlayerRole('host'); setOnlineStatus('hosting');
+                await db.doc(`artifacts/${appId}/public/data/rooms/${code}`).set({
+                    hostId: user.uid, status: 'waiting', turn: 'host', hostLines: 0, guestLines: 0
+                });
+            };
+            const joinOnline = async () => {
+                if (!isOnlineSupported || !user) { alert("Please deploy to Vercel to use Online Mode (Auth required)."); return; }
+                const ref = db.doc(`artifacts/${appId}/public/data/rooms/${roomCode}`);
+                const d = await ref.get();
+                if (d.exists && d.data().status === 'waiting') {
+                    setCurrentRoomId(roomCode); setPlayerRole('guest'); setOnlineStatus('connected');
+                    await ref.update({ guestId: user.uid, status: 'playing' });
+                    setGameState('playing');
+                } else { setError("Not found or full."); }
             };
 
             const themeStyles = useMemo(() => {
                 const p = lettersStruckCount;
                 if (theme === 'dark') {
                     const stops = ['#020617', p > 1 ? '#172554' : '#0f172a', p > 3 ? '#312e81' : '#1e1b4b', p === 5 ? '#581c87' : '#020617'];
-                    return { 
-                        bgGradient: `linear-gradient(-45deg, ${stops.join(', ')})`, 
-                        textMain: 'text-white', 
-                        textSub: 'text-slate-400', 
-                        cardBg: 'bg-slate-900/90', 
-                        gridBase: 'bg-slate-800/50 border-white/10 text-white', 
-                        gridMarked: 'bg-gradient-to-br from-violet-600 to-fuchsia-600 border-violet-400', 
-                        botGridBase: 'bg-slate-800/30 border-white/5',
-                        botGridMarked: 'bg-red-500/80 border-red-400',
-                        headerLetterActive: 'bg-yellow-400 text-black border-yellow-200 shadow-yellow-400/50', 
-                        headerLetterInactive: 'bg-slate-800 text-slate-600 border-slate-700', 
-                        buttonPrimary: 'bg-indigo-600 hover:bg-indigo-500 text-white', 
-                        buttonDisabled: 'bg-slate-700 text-slate-500 cursor-not-allowed' 
-                    };
+                    return { bgGradient: `linear-gradient(-45deg, ${stops.join(', ')})`, textMain: 'text-white', textSub: 'text-slate-400', cardBg: 'bg-slate-900/90', gridBase: 'bg-slate-800/50 border-white/10 text-white', gridMarked: 'bg-gradient-to-br from-violet-600 to-fuchsia-600 border-violet-400', botGridBase: 'bg-slate-800/30 border-white/5', botGridMarked: 'bg-red-500/80 border-red-400', headerLetterActive: 'bg-yellow-400 text-black border-yellow-200 shadow-yellow-400/50', headerLetterInactive: 'bg-slate-800 text-slate-600 border-slate-700', buttonPrimary: 'bg-indigo-600 hover:bg-indigo-500 text-white', buttonDisabled: 'bg-slate-700 text-slate-500 cursor-not-allowed' };
                 } else {
                     const stops = ['#e2e8f0', p > 1 ? '#fecaca' : '#f1f5f9', p > 3 ? '#fde68a' : '#e2e8f0', p === 5 ? '#86efac' : '#f8fafc'];
-                    return { 
-                        bgGradient: `linear-gradient(-45deg, ${stops.join(', ')})`, 
-                        textMain: 'text-slate-900', 
-                        textSub: 'text-slate-500', 
-                        cardBg: 'bg-white/95', 
-                        gridBase: 'bg-white border-slate-200 text-slate-800', 
-                        gridMarked: 'bg-gradient-to-br from-rose-500 to-orange-500 border-rose-300', 
-                        botGridBase: 'bg-slate-100 border-slate-200',
-                        botGridMarked: 'bg-red-400 border-red-300',
-                        headerLetterActive: 'bg-rose-600 text-white border-rose-400 shadow-rose-500/40', 
-                        headerLetterInactive: 'bg-slate-200 text-slate-400 border-slate-300', 
-                        buttonPrimary: 'bg-rose-600 hover:bg-rose-500 text-white', 
-                        buttonDisabled: 'bg-slate-100 text-slate-300 cursor-not-allowed' 
-                    };
+                    return { bgGradient: `linear-gradient(-45deg, ${stops.join(', ')})`, textMain: 'text-slate-900', textSub: 'text-slate-500', cardBg: 'bg-white/95', gridBase: 'bg-white border-slate-200 text-slate-800', gridMarked: 'bg-gradient-to-br from-rose-500 to-orange-500 border-rose-300', botGridBase: 'bg-slate-100 border-slate-200', botGridMarked: 'bg-red-400 border-red-300', headerLetterActive: 'bg-rose-600 text-white border-rose-400 shadow-rose-500/40', headerLetterInactive: 'bg-slate-200 text-slate-400 border-slate-300', buttonPrimary: 'bg-rose-600 hover:bg-rose-500 text-white', buttonDisabled: 'bg-slate-100 text-slate-300 cursor-not-allowed' };
                 }
             }, [theme, lettersStruckCount]);
 
             const getCellErrors = useCallback(() => {
                 const errors = Array(5).fill(null).map(() => Array(5).fill(false));
-                const flatValues = board.flat().filter(v => v !== '');
-                const counts = {};
-                flatValues.forEach(v => { counts[v] = (counts[v] || 0) + 1; });
-                board.forEach((row, rIdx) => {
-                    row.forEach((cell, cIdx) => {
-                        if (cell === '') { errors[rIdx][cIdx] = true; return; }
-                        const num = parseInt(cell, 10);
-                        if (isNaN(num) || num < 1 || num > 25 || counts[cell] > 1) errors[rIdx][cIdx] = true;
-                    });
-                });
+                const flat = board.flat().filter(v => v !== '');
+                const c = {}; flat.forEach(v => c[v] = (c[v] || 0) + 1);
+                board.forEach((row, r) => row.forEach((cell, ci) => {
+                    if (!cell) errors[r][ci] = true;
+                    else if (isNaN(parseInt(cell)) || parseInt(cell) < 1 || parseInt(cell) > 25 || c[cell] > 1) errors[r][ci] = true;
+                }));
                 return errors;
             }, [board]);
 
             const hasErrors = getCellErrors().flat().some(e => e === true);
 
-            useEffect(() => {
-                if (setupMode === 'random' && gameState === 'setup') {
-                    setBoard(createRandomBoard());
-                }
-            }, [setupMode, gameState]);
-
-            const resetGame = () => {
-                setGameState('setup');
-                setMarked(Array(5).fill(null).map(() => Array(5).fill(false)));
-                setCompletedLines(new Set());
-                setBotWins(false);
-                setBotLines(0);
-                setTurn('player');
-                setLastAction('');
-                if (setupMode === 'random') setBoard(createRandomBoard());
-            };
-
-            const startGame = () => {
-                if (hasErrors) return;
-                if (gameMode === 'bot') {
-                    setBotBoard(createRandomBoard());
-                    setBotMarked(Array(5).fill(null).map(() => Array(5).fill(false)));
-                    setTurn('player');
-                    setLastAction('Your Turn! Pick a number.');
-                }
-                setGameState('playing');
-            };
-
-            const handleManualInput = (r, c, val) => {
-                const clean = val.replace(/\D/g, '').slice(0, 2);
-                const newBoard = board.map((row, ri) => row.map((cell, ci) => (ri === r && ci === c ? clean : cell)));
-                setBoard(newBoard);
-            };
-
-            const toggleCell = (r, c) => {
-                if (gameState !== 'playing' || isWinner || botWins) return;
-                
-                // Normal "Friend" mode logic
-                if (gameMode === 'friend') {
-                    const newMarked = marked.map((row, ri) => row.map((val, ci) => (ri === r && ci === c ? !val : val)));
-                    setMarked(newMarked);
-                    const res = calculateLines(newMarked);
-                    setCompletedLines(res.set);
-                    return;
-                }
-
-                // Bot Mode Logic - Player Turn
-                if (turn === 'player') {
-                    if (marked[r][c]) return; // Already marked
-
-                    const pick = board[r][c];
-                    setLastAction(`You picked ${pick}`);
-
-                    // Mark Player
-                    const newPlayerMarked = markNumberOnBoard(board, marked, pick);
-                    setMarked(newPlayerMarked);
-                    
-                    // Mark Bot
-                    const newBotMarked = markNumberOnBoard(botBoard, botMarked, pick);
-                    setBotMarked(newBotMarked);
-
-                    // Check Wins
-                    const playerResult = calculateLines(newPlayerMarked);
-                    setCompletedLines(playerResult.set);
-
-                    const botResult = calculateLines(newBotMarked);
-                    setBotLines(botResult.count);
-                    if (botResult.count >= 5) setBotWins(true);
-
-                    setTurn('bot');
-                }
-            };
-
-            // Mini Bot Board Component
-            const MiniBotBoard = () => (
+            const MiniOpponentBoard = () => (
                 <div className="mb-4 w-full flex flex-col items-center animate-pop-in">
                     <div className="flex gap-1 mb-2">
-                        {BINGO_LETTERS.map((letter, idx) => (
-                            <div key={idx} className={`w-5 h-5 flex items-center justify-center rounded-sm text-[10px] font-black transition-all ${idx < Math.min(botLines, 5) ? 'bg-red-500 text-white' : (theme === 'dark' ? 'bg-slate-800 text-slate-600' : 'bg-slate-200 text-slate-400')}`}>
-                                {letter}
-                            </div>
-                        ))}
+                        {BINGO_LETTERS.map((l, i) => (<div key={i} className={`w-5 h-5 flex items-center justify-center rounded-sm text-[8px] font-black transition-all ${i < opponentLines ? 'bg-red-500 text-white' : 'bg-black/20 text-slate-500'}`}>{l}</div>))}
                     </div>
-                    <div className="grid grid-cols-5 gap-1 p-2 rounded-lg bg-black/10">
-                        {botMarked.map((row, rIdx) => row.map((isMarked, cIdx) => (
-                            <div key={`${rIdx}-${cIdx}`} className={`w-5 h-5 rounded-sm border transition-all duration-300 ${isMarked ? themeStyles.botGridMarked : themeStyles.botGridBase}`}></div>
-                        )))}
-                    </div>
-                    <div className={`text-[10px] font-bold mt-1 ${themeStyles.textSub} uppercase tracking-widest`}>
-                        BOT ({botDifficulty})
-                    </div>
+                    <div className="grid grid-cols-5 gap-1 p-1 rounded-lg bg-black/10">{opponentMarked.map((row, r) => row.map((m, c) => (<div key={`${r}-${c}`} className={`w-3.5 h-3.5 rounded-sm border ${m ? themeStyles.botGridMarked : themeStyles.botGridBase}`}></div>)))}</div>
+                    <div className={`text-[8px] font-black mt-1 ${themeStyles.textSub} uppercase tracking-[0.2em]`}>{gameMode === 'bot' ? `BOT (${botDifficulty})` : "OPPONENT"}</div>
                 </div>
             );
 
             return (
                 <div className="min-h-screen flex flex-col items-center p-4 md:p-8 animate-gradient-bg theme-transition relative" style={{ backgroundImage: themeStyles.bgGradient }}>
                     
-                    <button onClick={() => setIsMusicPlaying(!isMusicPlaying)} className={`fixed top-4 left-4 z-50 px-4 py-2 rounded-full font-bold text-sm shadow-lg ${theme === 'dark' ? 'bg-slate-800 text-purple-400' : 'bg-white text-indigo-500'}`}>{isMusicPlaying ? '🎵 ON' : '🔇 OFF'}</button>
-                    <button onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')} className={`fixed top-4 right-4 z-50 px-4 py-2 rounded-full font-bold text-sm shadow-lg ${theme === 'dark' ? 'bg-slate-800 text-yellow-400' : 'bg-white text-rose-500'}`}>{theme === 'dark' ? '☀️' : '🌙'}</button>
-                    
-                    {/* Rules Modal */}
-                    {showRules && <RulesModal onClose={() => setShowRules(false)} themeStyles={themeStyles} />}
+                    {/* Status Dot */}
+                    <div className={`fixed top-6 left-28 z-50 w-3 h-3 rounded-full transition-colors duration-500 ${isOnlineSupported && user ? 'bg-emerald-500 shadow-[0_0_10px_#10b981]' : 'bg-red-500'}`} title={isOnlineSupported && user ? "Online Ready" : "Offline / Auth Missing"}></div>
 
-                    {isWinner && (
-                        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4 animate-pop cursor-default">
-                            <ConfettiOverlay />
-                            <div className={`glass-panel ${themeStyles.cardBg} border-4 ${theme === 'dark' ? 'border-yellow-400' : 'border-rose-500'} rounded-3xl p-10 max-w-sm w-full text-center shadow-2xl relative`}>
-                                <div className="text-7xl mb-4 animate-float">🏆</div>
-                                <h2 className={`text-5xl font-black ${theme === 'dark' ? 'text-yellow-400' : 'text-rose-600'} mb-2 tracking-tighter uppercase italic`}>VICTORY!</h2>
-                                <button onClick={resetGame} className={`w-full py-4 rounded-2xl text-xl font-black shadow-xl ${themeStyles.buttonPrimary}`}>PLAY AGAIN</button>
-                            </div>
+                    <div className="w-full max-w-md flex justify-between mb-4">
+                        <button onClick={() => setIsMusicPlaying(!isMusicPlaying)} className={`p-3 rounded-2xl glass-panel text-[10px] font-black uppercase tracking-widest hover:bg-white/10 transition-all ${theme === 'dark' ? 'text-white' : 'text-slate-900 border-slate-300'}`}>{isMusicPlaying ? '🎵 ON' : '🔇 OFF'}</button>
+                        <div className="flex gap-2">
+                            <button onClick={() => setShowRules(true)} className={`px-4 py-2 rounded-2xl glass-panel text-[10px] font-black uppercase tracking-widest hover:bg-white/10 ${theme === 'dark' ? 'text-white' : 'text-slate-900 border-slate-300'}`}>Help?</button>
+                            <button onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')} className={`p-3 rounded-2xl glass-panel text-[10px] font-black uppercase tracking-widest hover:bg-white/10 transition-all ${theme === 'dark' ? 'text-white' : 'text-slate-900 border-slate-300'}`}>{theme === 'dark' ? '☀️' : '🌙'}</button>
+                        </div>
+                    </div>
+
+                    {error && (
+                        <div className="fixed top-20 left-1/2 -translate-x-1/2 bg-red-500 text-white px-4 py-2 rounded-xl font-bold text-xs shadow-xl z-[100] animate-pop-in">
+                            {error} <button onClick={() => setError('')} className="ml-2 opacity-50 hover:opacity-100">✕</button>
                         </div>
                     )}
 
-                    {botWins && !isWinner && (
-                        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 animate-pop cursor-default">
-                            <div className={`glass-panel bg-red-950/90 border-4 border-red-600 rounded-3xl p-10 max-w-sm w-full text-center shadow-2xl relative`}>
-                                <div className="text-7xl mb-4 animate-bounce-float">🤖</div>
-                                <h2 className="text-5xl font-black text-red-500 mb-2 tracking-tighter uppercase italic">DEFEAT</h2>
-                                <p className="text-red-200 mb-8 font-medium">The Bot got Bingo first!</p>
-                                <button onClick={resetGame} className="w-full py-4 rounded-2xl text-xl font-black shadow-xl bg-red-600 hover:bg-red-500 text-white">TRY AGAIN</button>
-                            </div>
-                        </div>
-                    )}
-
-                    <div className={`w-full max-w-md glass-panel ${themeStyles.cardBg} rounded-[2.5rem] shadow-2xl overflow-hidden transition-all duration-300 relative z-10 ${isWinner || botWins ? 'scale-95 opacity-50 blur-sm pointer-events-none' : ''}`}>
+                    <div className={`w-full max-w-md glass-panel ${themeStyles.cardBg} rounded-[2.5rem] shadow-2xl overflow-hidden transition-all duration-300 relative z-10 ${isWinner || hasOpponentWon ? 'scale-95 opacity-50 blur-sm' : ''}`}>
                         
-                        <div className="p-6 text-center bg-gradient-to-br from-white/10 to-transparent">
-                            {/* Mini Bot Board */}
-                            {gameState === 'playing' && gameMode === 'bot' && <MiniBotBoard />}
-
-                            {gameState === 'setup' && <h1 className={`text-4xl font-black tracking-[0.3em] mb-4 italic drop-shadow-md ${theme === 'dark' ? 'text-white' : 'text-slate-800'}`}>BINGO</h1>}
+                        <div className="p-8 text-center border-b border-white/5">
+                            {(gameMode === 'bot' || (gameMode === 'online' && gameState === 'playing')) && <MiniOpponentBoard />}
                             
-                            {/* Player Bingo Letters */}
+                            {gameState === 'setup' && <h1 className={`text-4xl font-black tracking-[0.3em] mb-6 italic ${themeStyles.textMain}`}>BINGO</h1>}
+                            
                             <div className="flex justify-between gap-2">
-                                {BINGO_LETTERS.map((letter, idx) => (
-                                    <div key={idx} className={`w-12 h-12 flex items-center justify-center rounded-xl text-2xl font-black border-b-4 transition-all duration-300 ${idx < lettersStruckCount ? themeStyles.headerLetterActive : themeStyles.headerLetterInactive}`}>{letter}</div>
+                                {BINGO_LETTERS.map((l, i) => (
+                                    <div key={i} className={`w-12 h-12 flex items-center justify-center rounded-xl text-2xl font-black transition-all ${i < lettersStruckCount ? 'bg-amber-400 text-black shadow-lg scale-110' : 'bg-slate-800/50 text-slate-600'}`}>{l}</div>
                                 ))}
                             </div>
 
-                            {/* Status Text */}
-                            {gameState === 'playing' && gameMode === 'bot' && (
-                                <div className={`mt-4 text-xs font-bold uppercase tracking-widest ${turn === 'player' ? 'text-green-400 animate-pulse' : 'text-amber-400'}`}>
-                                    {lastAction && <div className="mb-1 opacity-70">{lastAction}</div>}
-                                    {turn === 'player' ? "YOUR TURN" : "BOT'S TURN"}
+                            {gameState === 'playing' && (gameMode === 'bot' || gameMode === 'online') && (
+                                <div className={`mt-4 text-xs font-bold uppercase tracking-widest ${turn === (gameMode === 'online' ? playerRole : 'player') ? 'text-emerald-400 animate-pulse' : 'text-amber-400'}`}>
+                                    {lastAction && <div className="mb-1 opacity-70 italic">{lastAction}</div>}
+                                    {turn === (gameMode === 'online' ? playerRole : 'player') ? "YOUR TURN" : "WAITING..."}
                                 </div>
                             )}
                         </div>
 
-                        <div className="p-8 pt-0">
+                        <div className="p-8 pt-6">
                             {gameState === 'setup' ? (
                                 <div className="space-y-6">
-                                    {/* Setup Mode Toggle */}
-                                    <div className={`flex p-1.5 rounded-2xl ${theme === 'dark' ? 'bg-black/30' : 'bg-slate-100'}`}>
-                                        <button onClick={() => setSetupMode('random')} className={`flex-1 py-3 rounded-xl text-xs font-black tracking-widest ${setupMode === 'random' ? themeStyles.buttonPrimary + ' shadow-lg' : themeStyles.textSub}`}>RANDOM</button>
-                                        <button onClick={() => { setSetupMode('manual'); setBoard(Array(5).fill(null).map(() => Array(5).fill(''))); }} className={`flex-1 py-3 rounded-xl text-xs font-black tracking-widest ${setupMode === 'manual' ? themeStyles.buttonPrimary + ' shadow-lg' : themeStyles.textSub}`}>MANUAL</button>
+                                    <div className={`flex p-1 rounded-2xl ${theme === 'dark' ? 'bg-black/30' : 'bg-slate-100'}`}>
+                                        {['friend', 'bot', 'online'].map(m => (
+                                            <button key={m} onClick={() => setGameMode(m)} className={`flex-1 py-2.5 rounded-xl text-[10px] font-black tracking-widest uppercase transition-all ${gameMode === m ? themeStyles.buttonPrimary : 'text-slate-500'}`}>{m}</button>
+                                        ))}
                                     </div>
 
-                                    {/* Input Grid */}
-                                    <div className="grid grid-cols-5 gap-2.5">
-                                        {board.map((row, rIdx) => row.map((cell, cIdx) => (
-                                            <div key={`${rIdx}-${cIdx}`} className="aspect-square">
-                                                <input type="text" inputMode="numeric" value={cell} disabled={setupMode === 'random'} onChange={(e) => { const clean = e.target.value.replace(/\D/g, '').slice(0, 2); setBoard(board.map((row, ri) => row.map((c, ci) => (ri === rIdx && ci === cIdx ? clean : c)))); }} className={`w-full h-full text-center font-black text-xl rounded-xl border-2 outline-none transition-all ${setupMode === 'random' ? themeStyles.gridBase + ' opacity-60' : (getCellErrors()[rIdx][cIdx] && cell !== '' ? 'bg-red-500/20 border-red-500 text-red-500' : themeStyles.gridBase + ' focus:border-current')}`} placeholder="•" />
-                                            </div>
-                                        )))}
-                                    </div>
-
-                                    {/* Game Mode Toggle */}
-                                    <div className="space-y-2">
-                                        <div className={`flex p-1.5 rounded-2xl ${theme === 'dark' ? 'bg-black/30' : 'bg-slate-100'}`}>
-                                            <button onClick={() => setGameMode('friend')} className={`flex-1 py-3 rounded-xl text-xs font-black tracking-widest ${gameMode === 'friend' ? themeStyles.buttonPrimary + ' shadow-lg' : themeStyles.textSub}`}>👥 FRIENDS</button>
-                                            <button onClick={() => setGameMode('bot')} className={`flex-1 py-3 rounded-xl text-xs font-black tracking-widest ${gameMode === 'bot' ? themeStyles.buttonPrimary + ' shadow-lg' : themeStyles.textSub}`}>🤖 BOT</button>
+                                    {gameMode === 'online' ? (
+                                        <div className="space-y-4 animate-pop-in">
+                                            {onlineStatus === 'idle' ? (
+                                                <div className="space-y-4">
+                                                    <button onClick={hostOnline} className={`w-full py-4 rounded-xl font-bold ${themeStyles.buttonPrimary}`}>HOST ROOM</button>
+                                                    <div className="flex gap-2">
+                                                        <input type="text" placeholder="6-digit code" value={roomCode} onChange={e => setRoomCode(e.target.value.replace(/\D/g, '').slice(0, 6))} className={`flex-1 rounded-xl px-4 text-center font-mono font-bold border-none outline-none ${theme === 'dark' ? 'bg-black/20 text-white placeholder-white/40' : 'bg-slate-200 text-slate-900 placeholder-slate-500'}`}/>
+                                                        <button onClick={joinOnline} className="px-6 py-4 bg-emerald-600 rounded-xl font-bold text-white">JOIN</button>
+                                                    </div>
+                                                    { !isOnlineSupported && (
+                                                        <p className="text-[10px] text-red-500 text-center font-bold">⚠️ Online mode requires hosting (e.g. Vercel) & Firebase.</p>
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                <div className="text-center p-6 bg-white/5 rounded-3xl border border-white/10">
+                                                    <p className="text-[10px] font-black opacity-40 uppercase mb-2">Room Code</p>
+                                                    <p className={`text-4xl font-mono font-black ${theme === 'dark' ? 'text-indigo-400' : 'text-indigo-600'}`}>{roomCode}</p>
+                                                    <p className="mt-4 text-[10px] font-bold animate-pulse tracking-widest uppercase opacity-50">Waiting for player...</p>
+                                                </div>
+                                            )}
+                                            {error && <p className="text-red-500 text-[10px] text-center font-bold">{error}</p>}
                                         </div>
-                                        {gameMode === 'bot' && (
-                                            <div className={`flex p-1.5 rounded-2xl mt-4 ${theme === 'dark' ? 'bg-black/30' : 'bg-slate-100'}`}>
-                                                <button onClick={() => setBotDifficulty('easy')} className={`flex-1 py-3 rounded-xl text-xs font-black tracking-widest ${botDifficulty === 'easy' ? themeStyles.buttonPrimary + ' shadow-lg' : themeStyles.textSub}`}>EASY</button>
-                                                <button onClick={() => setBotDifficulty('hard')} className={`flex-1 py-3 rounded-xl text-xs font-black tracking-widest ${botDifficulty === 'hard' ? themeStyles.buttonPrimary + ' shadow-lg' : themeStyles.textSub}`}>HARD</button>
+                                    ) : (
+                                        <div className="space-y-6 animate-pop-in">
+                                            <div className={`flex p-1.5 rounded-2xl ${theme === 'dark' ? 'bg-black/30' : 'bg-slate-100'}`}>
+                                                <button onClick={() => { setSetupMode('random'); setBoard(createRandomBoard()); }} className={`flex-1 py-3 rounded-xl text-xs font-black tracking-widest ${setupMode === 'random' ? themeStyles.buttonPrimary : themeStyles.textSub}`}>RANDOM</button>
+                                                <button onClick={() => { setSetupMode('manual'); setBoard(Array(5).fill(null).map(() => Array(5).fill(''))); }} className={`flex-1 py-3 rounded-xl text-xs font-black tracking-widest ${setupMode === 'manual' ? themeStyles.buttonPrimary : themeStyles.textSub}`}>MANUAL</button>
                                             </div>
-                                        )}
-                                        <button onClick={() => setShowRules(true)} className={`w-full text-[10px] font-bold uppercase tracking-widest opacity-60 hover:opacity-100 ${themeStyles.textSub}`}>How to Play?</button>
-                                    </div>
 
-                                    <button onClick={startGame} disabled={hasErrors} className={`w-full py-5 rounded-2xl text-xl font-black tracking-widest shadow-xl active:scale-95 transition-all ${hasErrors ? 'bg-slate-500/20 text-slate-400 cursor-not-allowed' : themeStyles.buttonPrimary}`}>START GAME</button>
+                                            <div className="grid grid-cols-5 gap-2.5">
+                                                {board.map((row, rIdx) => row.map((cell, cIdx) => (
+                                                    <div key={`${rIdx}-${cIdx}`} className="aspect-square">
+                                                        <input 
+                                                            type="text" 
+                                                            value={cell} 
+                                                            disabled={setupMode === 'random'} 
+                                                            onChange={(e) => {
+                                                                const val = e.target.value.replace(/\D/g, '').slice(0, 2);
+                                                                setBoard(prev => prev.map((row, ri) => row.map((c, ci) => (ri === rIdx && ci === cIdx ? val : c))));
+                                                            }}
+                                                            placeholder="•"
+                                                            className={`w-full h-full text-center font-black rounded-lg border-2 bg-transparent ${themeStyles.textMain} ${getCellErrors()[rIdx][cIdx] && cell !== '' ? 'border-red-500 text-red-500' : 'border-white/10'} ${setupMode === 'random' ? 'opacity-50' : ''}`}
+                                                        />
+                                                    </div>
+                                                )))}
+                                            </div>
+
+                                            {gameMode === 'bot' && (
+                                                <div className={`flex p-1.5 rounded-2xl ${theme === 'dark' ? 'bg-black/30' : 'bg-slate-100'}`}>
+                                                    <button onClick={() => setBotDifficulty('easy')} className={`flex-1 py-2 rounded-xl text-[10px] font-black tracking-widest ${botDifficulty === 'easy' ? themeStyles.buttonPrimary : themeStyles.textSub}`}>EASY</button>
+                                                    <button onClick={() => setBotDifficulty('hard')} className={`flex-1 py-2 rounded-xl text-[10px] font-black tracking-widest ${botDifficulty === 'hard' ? themeStyles.buttonPrimary : themeStyles.textSub}`}>HARD</button>
+                                                </div>
+                                            )}
+
+                                            {gameMode === 'friend' && (
+                                                <button onClick={() => setShowCaller(true)} className={`w-full py-3 rounded-xl border-2 border-dashed text-xs font-bold uppercase tracking-widest opacity-80 hover:opacity-100 ${theme === 'dark' ? 'border-indigo-500/50 text-indigo-300' : 'border-rose-400/50 text-rose-500'}`}>OPEN CALLER TOOL 📢</button>
+                                            )}
+                                            
+                                            <div className="text-center">
+                                                <p className={`text-[10px] font-bold uppercase tracking-widest opacity-40 mb-2 ${themeStyles.textSub}`}>New? Check rules before playing!</p>
+                                                <button onClick={() => setShowRules(true)} className={`w-full text-[10px] font-bold uppercase tracking-widest opacity-60 hover:opacity-100 ${themeStyles.textSub}`}>How to Play?</button>
+                                            </div>
+                                            
+                                            <button onClick={startGame} disabled={hasErrors} className={`w-full py-5 rounded-2xl text-xl font-black tracking-widest shadow-xl active:scale-95 transition-all ${hasErrors ? 'bg-slate-500/20 text-slate-400 cursor-not-allowed' : themeStyles.buttonPrimary}`}>START GAME</button>
+                                        </div>
+                                    )}
                                 </div>
                             ) : (
                                 <div className="space-y-6">
-                                    {/* Playing Grid */}
-                                    <div className={`grid grid-cols-5 gap-2.5 transition-opacity ${gameMode === 'bot' && turn === 'bot' ? 'opacity-50 pointer-events-none' : ''}`}>
+                                    <div className={`grid grid-cols-5 gap-2.5 transition-opacity ${(gameMode === 'bot' || gameMode === 'online') && turn !== (gameMode === 'online' ? playerRole : 'player') ? 'opacity-50 pointer-events-none' : ''}`}>
                                         {board.map((row, rIdx) => row.map((cell, cIdx) => (
                                             <button 
                                                 key={`${rIdx}-${cIdx}`} 
-                                                onClick={() => toggleCell(rIdx, cIdx)} 
-                                                className={`relative aspect-square rounded-xl text-xl font-black transition-all border-b-4 active:border-b-0 active:translate-y-1 ${marked[rIdx][cIdx] ? themeStyles.gridMarked + ' scale-95' : themeStyles.gridBase}`}
+                                                onClick={() => toggleCell(rIdx, cIdx)}
+                                                // DISABLED ATTRIBUTE ADDED HERE FOR ROBUSTNESS
+                                                disabled={(gameMode === 'online' || gameMode === 'bot') && turn !== (gameMode === 'online' ? playerRole : 'player')}
+                                                className={`relative aspect-square rounded-xl text-xl font-black transition-all border-b-4 active:border-b-0 active:translate-y-1 ${marked[rIdx][cIdx] ? themeStyles.gridMarked + ' scale-95' : themeStyles.gridBase} ${(gameMode === 'online' || gameMode === 'bot') && turn !== (gameMode === 'online' ? playerRole : 'player') && !marked[rIdx][cIdx] ? 'opacity-50 cursor-not-allowed' : ''}`}
                                             >
                                                 {cell}
                                                 {marked[rIdx][cIdx] && <span className="absolute inset-0 flex items-center justify-center text-3xl opacity-30 pointer-events-none">✨</span>}
                                             </button>
                                         )))}
                                     </div>
-
-                                    {/* Bot Trigger Button */}
+                                    {/* Bot Trigger Button (Hidden but logic remains) */}
                                     {gameMode === 'bot' && (
                                         <button 
                                             onClick={triggerBotMove}
                                             disabled={turn === 'player'}
-                                            className={`w-full py-4 rounded-xl text-lg font-black tracking-wider shadow-lg active:scale-95 transition-all ${turn === 'player' ? themeStyles.buttonDisabled : themeStyles.buttonPrimary}`}
+                                            className="hidden" // Hidden because it's auto-triggered now
                                         >
-                                            {turn === 'player' ? "YOUR TURN (PICK A #)" : "BOT'S TURN (CLICK ME)"}
+                                            Draw
                                         </button>
                                     )}
 
-                                    <button onClick={resetGame} className={`w-full py-3 rounded-xl border-2 text-xs font-black tracking-[0.2em] active:scale-95 transition-all opacity-70 hover:opacity-100 ${theme === 'dark' ? 'border-white/10 text-slate-400' : 'border-slate-200 text-slate-500'}`}>RESET BOARD</button>
+                                    {/* In-Game Caller for Friend Mode */}
+                                    {gameMode === 'friend' && (
+                                        <button 
+                                            onClick={() => setShowCaller(true)} 
+                                            className={`w-full py-3 mb-2 rounded-xl border-2 border-dashed font-bold uppercase tracking-widest ${theme === 'dark' ? 'border-indigo-500/50 text-indigo-300 hover:bg-white/5' : 'border-rose-400/50 text-rose-500 hover:bg-black/5'}`}
+                                        >
+                                            OPEN CALLER TOOL 📢
+                                        </button>
+                                    )}
+
+                                    <button onClick={resetGame} className={`w-full py-3 rounded-xl border-2 text-xs font-black tracking-[0.2em] active:scale-95 transition-all opacity-70 hover:opacity-100 ${theme === 'dark' ? 'border-white/10 text-slate-400' : 'border-slate-200 text-slate-500'}`}>QUIT TO MENU</button>
                                 </div>
                             )}
                         </div>
@@ -550,6 +659,25 @@
                             <p className={`text-[10px] font-black tracking-[0.4em] ${themeStyles.textSub}`}>{completedLines.size} / 5 LINES</p>
                         </div>
                     </div>
+
+                    {showRules && <RulesModal onClose={() => setShowRules(false)} themeStyles={themeStyles} />}
+                    {showCaller && <CallerTool onClose={() => setShowCaller(false)} themeStyles={themeStyles} theme={theme} calledNumbers={calledNumbers} setCalledNumbers={setCalledNumbers} currentCallerNumber={currentCallerNumber} setCurrentCallerNumber={setCurrentCallerNumber} />}
+                    {isWinner && <ConfettiOverlay />}
+
+                    {(isWinner || hasOpponentWon) && (
+                        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 p-6 animate-pop-in">
+                            <div className="glass-panel bg-slate-900 border-4 border-white/10 rounded-[3rem] p-12 text-center shadow-2xl max-w-sm w-full">
+                                <p className="text-7xl mb-6">{isWinner && !hasOpponentWon ? '🎉' : '💀'}</p>
+                                <h2 className={`text-5xl font-black italic mb-2 tracking-tighter ${isWinner && !hasOpponentWon ? 'text-amber-400' : 'text-red-500'}`}>
+                                    {isWinner && !hasOpponentWon ? 'VICTORY!' : 'DEFEAT'}
+                                </h2>
+                                <p className="text-slate-400 mb-8 font-medium">
+                                    {isWinner && !hasOpponentWon ? 'You conquered the board!' : 'The opponent was faster!'}
+                                </p>
+                                <button onClick={resetGame} className={`w-full py-4 rounded-2xl font-black text-xl shadow-xl ${themeStyles.buttonPrimary}`}>BACK TO MENU</button>
+                            </div>
+                        </div>
+                    )}
                 </div>
             );
         };

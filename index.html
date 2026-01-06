@@ -217,11 +217,13 @@
             const [currentRoomId, setCurrentRoomId] = useState(null);
             const [onlineStatus, setOnlineStatus] = useState('idle'); 
             const [playerRole, setPlayerRole] = useState(null); 
-            const [isProcessingMove, setIsProcessingMove] = useState(false);
+            const moveLockRef = useRef(false); // Instant block for double inputs
 
             // REF PATTERN TO FIX ONLINE SYNC STALE CLOSURES
             const stateRef = useRef({ board, marked, turn, playerRole, gameMode, onlineStatus, opponentMarked, gameState });
-            useEffect(() => { stateRef.current = { board, marked, turn, playerRole, gameMode, onlineStatus, opponentMarked, gameState }; });
+            useEffect(() => { 
+                stateRef.current = { board, marked, turn, playerRole, gameMode, onlineStatus, opponentMarked, gameState }; 
+            });
 
             const lettersStruckCount = Math.min(completedLines.size, 5);
             const isWinner = lettersStruckCount >= 5 && !botWins; 
@@ -274,8 +276,9 @@
                     
                     if (data.turn && data.turn !== currentState.turn) {
                          setTurn(data.turn);
-                         if (data.turn === currentState.playerRole) setIsProcessingMove(false);
+                         if (data.turn === currentState.playerRole) moveLockRef.current = false;
                     }
+                    
                     if (data.lastPick) setLastAction(`Opponent picked ${data.lastPick}`);
 
                     const isHost = currentState.playerRole === 'host';
@@ -359,7 +362,7 @@
                 setBotWins(false);
                 setTurn('player');
                 setLastAction('');
-                setIsProcessingMove(false);
+                moveLockRef.current = false;
                 setError('');
                 if (setupMode === 'random') setBoard(createRandomBoard());
             };
@@ -406,8 +409,8 @@
                 if (gameState !== 'playing' || isWinner || hasOpponentWon) return;
                 if (marked[r][c]) return;
                 
-                // Prevent multiple inputs during async ops
-                if (gameMode === 'online' && isProcessingMove) return;
+                // Block multiple inputs instantly
+                if (moveLockRef.current) return;
                 
                 const val = board[r][c];
 
@@ -415,16 +418,26 @@
                     if (!isOnlineSupported) return;
                     if (turn !== playerRole) return;
                     
-                    setIsProcessingMove(true); // LOCK INPUT
+                    moveLockRef.current = true; // LOCK INPUT IMMEDIATELY
                     
                     const next = marked.map((row, ri) => row.map((v, ci) => (ri===r && ci===c ? true : v)));
                     setMarked(next);
                     const res = calculateLines(next);
                     setCompletedLines(res.set);
-                    const update = { turn: playerRole === 'host' ? 'guest' : 'host', lastPick: val, lastPickBy: playerRole };
+                    
+                    const nextTurn = playerRole === 'host' ? 'guest' : 'host';
+                    setTurn(nextTurn); // Local optimistic flip
+
+                    const update = { turn: nextTurn, lastPick: val, lastPickBy: playerRole };
                     if (playerRole === 'host') { update.hostMarked = next; update.hostLines = res.count; }
                     else { update.guestMarked = next; update.guestLines = res.count; }
-                    await db.doc(`artifacts/${appId}/public/data/rooms/${currentRoomId}`).update(update);
+                    
+                    try {
+                        await db.doc(`artifacts/${appId}/public/data/rooms/${currentRoomId}`).update(update);
+                    } catch (e) {
+                         console.error("Move failed", e);
+                         moveLockRef.current = false;
+                    }
                 } else if (gameMode === 'bot') {
                     if (turn !== 'player') return;
                     setLastAction(`You picked ${val}`);

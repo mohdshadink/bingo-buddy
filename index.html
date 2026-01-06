@@ -105,12 +105,15 @@
                         </div>
                         <div className="bg-white/5 p-4 rounded-2xl">
                             <h3 className={`text-lg font-bold mb-2 ${themeStyles.textMain}`}>🤖 BOT MODE</h3>
-                            <p>Bot plays automatically. Hard mode is strategic!</p>
+                            <ul className="list-disc list-inside space-y-2 pl-1">
+                                <li>The Bot plays automatically after you move.</li>
+                                <li>Hard mode uses strategy to complete lines faster!</li>
+                            </ul>
                         </div>
                         <div className="bg-white/5 p-4 rounded-2xl border border-indigo-500/30">
                             <h3 className={`text-lg font-bold mb-2 ${themeStyles.textMain}`}>🌐 ONLINE PVP</h3>
-                            <p className="text-red-400 font-bold mb-2 animate-pulse uppercase tracking-widest text-[10px]">STILL IN DEVELOPMENT ⚠️</p>
                             <p>Play against a real person. Deploy to Vercel for best results.</p>
+                            { !isOnlineSupported && <p className="text-red-500 font-bold mt-2 text-xs">⚠️ Firebase config missing.</p>}
                         </div>
                     </div>
                     <button onClick={onClose} className={`w-full mt-8 py-4 rounded-2xl font-black text-lg ${themeStyles.buttonPrimary} shadow-lg active:scale-95 transition-all`}>GOT IT</button>
@@ -508,10 +511,6 @@
 
                                     {gameMode === 'online' ? (
                                         <div className="space-y-4 animate-pop-in">
-                                            {/* ADDED DEVELOPMENT NOTICE */}
-                                            <div className="bg-red-500/10 border border-red-500/30 p-3 rounded-xl text-center">
-                                                <p className="text-red-500 font-black text-[10px] uppercase tracking-widest animate-pulse">Online Mode: Still in Development ⚠️</p>
-                                            </div>
                                             {onlineStatus === 'idle' ? (
                                                 <div className="space-y-4">
                                                     <button onClick={hostOnline} className={`w-full py-4 rounded-xl font-bold ${themeStyles.buttonPrimary}`}>HOST ROOM</button>

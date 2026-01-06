@@ -55,7 +55,8 @@
         let db = null;
         let auth = null;
         let isOnlineSupported = false;
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'bingo-buddy';
+        // Consistent App ID to ensure room paths match on both tabs
+        const appId = 'bingo-buddy-final';
 
         try {
             const configToUse = (customFirebaseConfig.apiKey) ? customFirebaseConfig : (typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null);
@@ -65,9 +66,9 @@
                 auth = firebase.auth();
                 isOnlineSupported = true;
             } else {
-                console.log("Offline Mode");
+                console.log("Offline Mode: Missing Config");
             }
-        } catch (e) { console.log("Firebase init skipped"); }
+        } catch (e) { console.log("Firebase Init Failed:", e); }
 
         const { useState, useEffect, useCallback, useMemo, useRef } = React;
         const BINGO_LETTERS = ['B', 'I', 'N', 'G', 'O'];
@@ -77,9 +78,7 @@
 
         const ConfettiOverlay = () => {
             const pieces = useMemo(() => Array.from({ length: 40 }).map((_, i) => ({
-                id: i,
-                left: Math.random() * 100 + '%',
-                delay: Math.random() * 2 + 's',
+                id: i, left: Math.random() * 100 + '%', delay: Math.random() * 2 + 's',
                 color: ['#f43f5e', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6'][Math.floor(Math.random() * 5)],
                 size: Math.random() * 8 + 5 + 'px'
             })), []);
@@ -100,22 +99,18 @@
                         <div className="bg-white/5 p-4 rounded-2xl">
                             <h3 className={`text-lg font-bold mb-2 ${themeStyles.textMain}`}>👥 FRIEND MODE</h3>
                             <ul className="list-disc list-inside space-y-2 pl-1">
-                                <li><strong>Classic:</strong> Use the Caller Tool. Everyone marks their own board.</li>
-                                <li><strong>1v1 Battle:</strong> Take turns picking numbers. Every number picked is marked on BOTH boards.</li>
+                                <li><strong>Classic:</strong> One person calls numbers, everyone marks their board.</li>
+                                <li><strong>1v1 Battle:</strong> Turns picking numbers; picked numbers mark for BOTH.</li>
                             </ul>
                         </div>
                         <div className="bg-white/5 p-4 rounded-2xl">
                             <h3 className={`text-lg font-bold mb-2 ${themeStyles.textMain}`}>🤖 BOT MODE</h3>
-                            <ul className="list-disc list-inside space-y-2 pl-1">
-                                <li>The Bot plays automatically after you move.</li>
-                                <li>Hard mode uses strategy to complete lines faster!</li>
-                            </ul>
+                            <p>Bot plays automatically. Hard mode is strategic!</p>
                         </div>
                         <div className="bg-white/5 p-4 rounded-2xl border border-indigo-500/30">
                             <h3 className={`text-lg font-bold mb-2 ${themeStyles.textMain}`}>🌐 ONLINE PVP</h3>
                             <p className="text-red-400 font-bold mb-2 animate-pulse uppercase tracking-widest text-[10px]">STILL IN DEVELOPMENT ⚠️</p>
-                            <p>Host a room or join with a code to play against a real person anywhere.</p>
-                            { !isOnlineSupported && <p className="text-red-500 font-bold mt-2 text-xs">⚠️ Firebase config missing.</p>}
+                            <p>Play against a real person. Deploy to Vercel for best results.</p>
                         </div>
                     </div>
                     <button onClick={onClose} className={`w-full mt-8 py-4 rounded-2xl font-black text-lg ${themeStyles.buttonPrimary} shadow-lg active:scale-95 transition-all`}>GOT IT</button>
@@ -131,49 +126,18 @@
                 setCalledNumbers(prev => [next, ...prev]);
                 setCurrentCallerNumber(next);
             };
-
-            const resetCaller = () => {
-                setCalledNumbers([]);
-                setCurrentCallerNumber(null);
-            };
-
             return (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 animate-pop-in">
                     <div className={`glass-panel ${themeStyles.cardBg} border-2 border-white/20 rounded-3xl p-8 max-w-md w-full relative flex flex-col items-center`}>
                         <button onClick={onClose} className={`absolute top-4 right-4 text-xs font-bold uppercase tracking-widest ${themeStyles.textSub} hover:opacity-100 opacity-60`}>Close</button>
-                        
                         <h2 className={`text-2xl font-black mb-6 ${themeStyles.textMain} tracking-widest`}>CALLER TOOL</h2>
-                        
-                        <div className={`w-32 h-32 rounded-full flex items-center justify-center text-6xl font-black border-8 shadow-2xl mb-8 ${theme === 'dark' ? 'bg-indigo-600 border-indigo-400 text-white' : 'bg-white border-rose-300 text-rose-600'}`}>
-                            {currentCallerNumber || "#"}
-                        </div>
-
-                        <button 
-                            onClick={drawNumber} 
-                            disabled={calledNumbers.length >= 25}
-                            className={`w-full py-4 rounded-xl text-xl font-black shadow-lg active:scale-95 transition-all mb-4 ${calledNumbers.length >= 25 ? themeStyles.buttonDisabled : themeStyles.buttonPrimary}`}
-                        >
-                            {calledNumbers.length >= 25 ? "ALL DRAWN" : "DRAW NUMBER"}
-                        </button>
-
-                        <div className="w-full">
-                            <div className={`text-xs font-bold uppercase tracking-widest mb-2 ${themeStyles.textSub}`}>History ({calledNumbers.length}/25)</div>
-                            <div className="flex flex-wrap gap-2 justify-center max-h-32 overflow-y-auto p-2 bg-black/20 rounded-xl">
-                                {calledNumbers.map((num, idx) => (
-                                    <span key={num} className={`inline-flex items-center justify-center w-8 h-8 rounded-lg text-xs font-bold ${idx === 0 ? 'bg-amber-400 text-black ring-2 ring-white' : (theme === 'dark' ? 'bg-slate-700 text-white' : 'bg-slate-200 text-slate-700')}`}>
-                                        {num}
-                                    </span>
-                                ))}
-                            </div>
-                        </div>
-                        
-                        <button onClick={resetCaller} className={`mt-6 text-xs font-bold uppercase tracking-widest opacity-50 hover:opacity-100 ${themeStyles.textSub}`}>Reset Caller History</button>
+                        <div className={`w-32 h-32 rounded-full flex items-center justify-center text-6xl font-black border-8 shadow-2xl mb-8 ${theme === 'dark' ? 'bg-indigo-600 border-indigo-400 text-white' : 'bg-white border-rose-300 text-rose-600'}`}>{currentCallerNumber || "#"}</div>
+                        <button onClick={drawNumber} disabled={calledNumbers.length >= 25} className={`w-full py-4 rounded-xl text-xl font-black shadow-lg active:scale-95 transition-all mb-4 ${calledNumbers.length >= 25 ? themeStyles.buttonDisabled : themeStyles.buttonPrimary}`}>{calledNumbers.length >= 25 ? "ALL DRAWN" : "DRAW NUMBER"}</button>
+                        <button onClick={() => { setCalledNumbers([]); setCurrentCallerNumber(null); }} className={`mt-6 text-xs font-bold uppercase tracking-widest opacity-50 hover:opacity-100 ${themeStyles.textSub}`}>Reset History</button>
                     </div>
                 </div>
             );
         };
-
-        // --- MAIN APP ---
 
         const App = () => {
             const createRandomBoard = () => {
@@ -190,36 +154,27 @@
             const [theme, setTheme] = useState('dark');
             const [showRules, setShowRules] = useState(false);
             const [showCaller, setShowCaller] = useState(false);
-
-            // Initialize board immediately
             const [board, setBoard] = useState(() => createRandomBoard());
             const [marked, setMarked] = useState(Array(5).fill(null).map(() => Array(5).fill(false)));
             const [completedLines, setCompletedLines] = useState(new Set());
-            
-            // Persistent Caller State
             const [calledNumbers, setCalledNumbers] = useState([]);
             const [currentCallerNumber, setCurrentCallerNumber] = useState(null);
-
-            // Bot/Online State
             const [opponentMarked, setOpponentMarked] = useState(Array(5).fill(null).map(() => Array(5).fill(false)));
             const [opponentLines, setOpponentLines] = useState(0);
             const [botBoard, setBotBoard] = useState([]);
             const [botDifficulty, setBotDifficulty] = useState('easy');
             const [botWins, setBotWins] = useState(false);
-
             const [turn, setTurn] = useState('player'); 
             const [lastAction, setLastAction] = useState('');
             const [error, setError] = useState('');
             const [isMusicPlaying, setIsMusicPlaying] = useState(false);
             const audioRef = useRef(null);
-
             const [roomCode, setRoomCode] = useState('');
             const [currentRoomId, setCurrentRoomId] = useState(null);
             const [onlineStatus, setOnlineStatus] = useState('idle'); 
             const [playerRole, setPlayerRole] = useState(null); 
-            const moveLockRef = useRef(false); // Instant block for double inputs
+            const moveLockRef = useRef(false);
 
-            // REF PATTERN TO FIX ONLINE SYNC STALE CLOSURES
             const stateRef = useRef({ board, marked, turn, playerRole, gameMode, onlineStatus, opponentMarked, gameState });
             useEffect(() => { 
                 stateRef.current = { board, marked, turn, playerRole, gameMode, onlineStatus, opponentMarked, gameState }; 
@@ -231,12 +186,7 @@
 
             useEffect(() => {
                 if (isOnlineSupported && auth) {
-                    const initAuth = async () => {
-                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                            await auth.signInWithCustomToken(__initial_auth_token).catch(() => auth.signInAnonymously());
-                        } else { await auth.signInAnonymously(); }
-                    };
-                    initAuth();
+                    auth.signInAnonymously().catch(e => console.log("Auth Error", e));
                     const unsubscribe = auth.onAuthStateChanged(setUser);
                     return () => unsubscribe();
                 }
@@ -246,20 +196,14 @@
                 audioRef.current = new Audio(MUSIC_URL);
                 audioRef.current.loop = true;
                 audioRef.current.volume = 0.4;
-                return () => { if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; } };
+                return () => { if (audioRef.current) audioRef.current.pause(); };
             }, []);
 
             useEffect(() => {
-                if (audioRef.current) {
-                    if (isMusicPlaying) {
-                        audioRef.current.play().catch(e => console.log("Audio play prevented:", e));
-                    } else {
-                        audioRef.current.pause();
-                    }
-                }
+                if (audioRef.current) isMusicPlaying ? audioRef.current.play().catch(()=>{}) : audioRef.current.pause();
             }, [isMusicPlaying]);
 
-            // ONLINE LISTENER
+            // ONLINE LISTENER - Critical logic fixed here
             useEffect(() => {
                 if (!isOnlineSupported || !user || !currentRoomId || gameMode !== 'online') return;
                 
@@ -270,12 +214,15 @@
                     const data = doc.data();
                     const currentState = stateRef.current;
 
+                    // Transition to board if guest joined
                     if (data.status === 'playing' && currentState.gameState !== 'playing') {
                         setGameState('playing');
                     }
                     
-                    if (data.turn && data.turn !== currentState.turn) {
+                    // Always sync turn state from DB
+                    if (data.turn) {
                          setTurn(data.turn);
+                         // Unlock board locally if it's our turn now
                          if (data.turn === currentState.playerRole) moveLockRef.current = false;
                     }
                     
@@ -285,17 +232,21 @@
                     if (isHost) {
                         setOpponentMarked(data.guestMarked || Array(5).fill(null).map(() => Array(5).fill(false)));
                         setOpponentLines(data.guestLines || 0);
+                        // Mark our board if opponent was the one who picked
                         if (data.lastPickBy === 'guest') syncFromOpponent(data.lastPick);
                     } else {
                         setOpponentMarked(data.hostMarked || Array(5).fill(null).map(() => Array(5).fill(false)));
                         setOpponentLines(data.hostLines || 0);
+                        // Mark our board if opponent was the one who picked
                         if (data.lastPickBy === 'host') syncFromOpponent(data.lastPick);
                         if (currentState.onlineStatus === 'hosting') setOnlineStatus('connected');
                     }
                 }, (err) => {
                     console.log("Sync error:", err);
-                    setError("Connection issue. Retrying...");
+                    setError("Network lag. Still syncing...");
                 });
+
+                // Fixed: Typo fixed from 'unsub' to 'unsubscribe'
                 return () => unsubscribe();
             }, [user, currentRoomId, gameMode]); 
 
@@ -389,18 +340,14 @@
                     });
                     pick = best;
                 }
-
                 setLastAction(`Bot picked ${pick}`);
                 const nextBotMarked = markNumberOnBoard(botBoard, opponentMarked, pick);
                 setOpponentMarked(nextBotMarked);
-                
                 const nextPlayerMarked = markNumberOnBoard(board, marked, pick);
                 setMarked(nextPlayerMarked);
-
                 const botRes = calculateLines(nextBotMarked);
                 setOpponentLines(botRes.count);
                 if (botRes.count >= 5) setBotWins(true);
-                
                 setCompletedLines(calculateLines(nextPlayerMarked).set);
                 setTurn('player');
             };
@@ -408,8 +355,6 @@
             const toggleCell = async (r, c) => {
                 if (gameState !== 'playing' || isWinner || hasOpponentWon) return;
                 if (marked[r][c]) return;
-                
-                // Block multiple inputs instantly
                 if (moveLockRef.current) return;
                 
                 const val = board[r][c];
@@ -418,7 +363,7 @@
                     if (!isOnlineSupported) return;
                     if (turn !== playerRole) return;
                     
-                    moveLockRef.current = true; // LOCK INPUT IMMEDIATELY
+                    moveLockRef.current = true; // LOCK IMMEDIATELY
                     
                     const next = marked.map((row, ri) => row.map((v, ci) => (ri===r && ci===c ? true : v)));
                     setMarked(next);
@@ -426,17 +371,26 @@
                     setCompletedLines(res.set);
                     
                     const nextTurn = playerRole === 'host' ? 'guest' : 'host';
-                    setTurn(nextTurn); // Local optimistic flip
+                    setTurn(nextTurn); // Local switch for speed
 
-                    const update = { turn: nextTurn, lastPick: val, lastPickBy: playerRole };
-                    if (playerRole === 'host') { update.hostMarked = next; update.hostLines = res.count; }
-                    else { update.guestMarked = next; update.guestLines = res.count; }
+                    const update = { 
+                        turn: nextTurn, 
+                        lastPick: val, 
+                        lastPickBy: playerRole,
+                        status: 'playing' // Ensure status is always consistent
+                    };
+                    if (playerRole === 'host') { 
+                        update.hostMarked = next; update.hostLines = res.count; 
+                    } else { 
+                        update.guestMarked = next; update.guestLines = res.count; 
+                    }
                     
                     try {
                         await db.doc(`artifacts/${appId}/public/data/rooms/${currentRoomId}`).update(update);
                     } catch (e) {
-                         console.error("Move failed", e);
+                         console.error("Update failed:", e);
                          moveLockRef.current = false;
+                         setError("Action failed. Try again.");
                     }
                 } else if (gameMode === 'bot') {
                     if (turn !== 'player') return;
@@ -444,12 +398,10 @@
                     const nextPlayer = marked.map((row, ri) => row.map((v, ci) => (ri===r && ci===c ? true : v)));
                     setMarked(nextPlayer);
                     setCompletedLines(calculateLines(nextPlayer).set);
-
                     const nextBot = markNumberOnBoard(botBoard, opponentMarked, val);
                     setOpponentMarked(nextBot);
                     const botRes = calculateLines(nextBot);
                     setOpponentLines(botRes.count);
-                    
                     if (botRes.count >= 5) setBotWins(true);
                     setTurn('bot');
                 } else {
@@ -460,22 +412,22 @@
             };
 
             const hostOnline = async () => {
-                if (!isOnlineSupported || !user) { alert("Deployment to Vercel/Netlify required for Online Mode."); return; }
+                if (!isOnlineSupported || !user) { alert("Deploy to Vercel/Netlify for Online Mode."); return; }
                 const code = Math.floor(100000 + Math.random() * 900000).toString();
                 setCurrentRoomId(code); setRoomCode(code); setPlayerRole('host'); setOnlineStatus('hosting');
                 await db.doc(`artifacts/${appId}/public/data/rooms/${code}`).set({
-                    hostId: user.uid, status: 'waiting', turn: 'host', hostLines: 0, guestLines: 0
+                    hostId: user.uid, status: 'waiting', turn: 'host', hostLines: 0, guestLines: 0, lastPick: null
                 });
             };
             const joinOnline = async () => {
-                if (!isOnlineSupported || !user) { alert("Deployment to Vercel/Netlify required for Online Mode."); return; }
+                if (!isOnlineSupported || !user) { alert("Deploy to Vercel/Netlify for Online Mode."); return; }
                 const ref = db.doc(`artifacts/${appId}/public/data/rooms/${roomCode}`);
                 const d = await ref.get();
                 if (d.exists && d.data().status === 'waiting') {
                     setCurrentRoomId(roomCode); setPlayerRole('guest'); setOnlineStatus('connected');
                     await ref.update({ guestId: user.uid, status: 'playing' });
                     setGameState('playing');
-                } else { setError("Not found or full."); }
+                } else { setError("Code invalid or room full."); }
             };
 
             const themeStyles = useMemo(() => {
@@ -502,21 +454,11 @@
 
             const hasErrors = getCellErrors().flat().some(e => e === true);
 
-            const MiniOpponentBoard = () => (
-                <div className="mb-4 w-full flex flex-col items-center animate-pop-in">
-                    <div className="flex gap-1 mb-2">
-                        {BINGO_LETTERS.map((l, i) => (<div key={i} className={`w-5 h-5 flex items-center justify-center rounded-sm text-[8px] font-black transition-all ${i < opponentLines ? 'bg-red-500 text-white' : 'bg-black/20 text-slate-500'}`}>{l}</div>))}
-                    </div>
-                    <div className="grid grid-cols-5 gap-1 p-1 rounded-lg bg-black/10">{opponentMarked.map((row, r) => row.map((m, c) => (<div key={`${r}-${c}`} className={`w-3.5 h-3.5 rounded-sm border ${m ? themeStyles.botGridMarked : themeStyles.botGridBase}`}></div>)))}</div>
-                    <div className={`text-[8px] font-black mt-1 ${themeStyles.textSub} uppercase tracking-[0.2em]`}>{gameMode === 'bot' ? `BOT (${botDifficulty})` : "OPPONENT"}</div>
-                </div>
-            );
-
             return (
                 <div className="min-h-screen flex flex-col items-center p-4 md:p-8 animate-gradient-bg theme-transition relative" style={{ backgroundImage: themeStyles.bgGradient }}>
                     
-                    {/* RESTORED STATUS DOT */}
-                    <div className={`fixed top-6 left-28 z-50 w-3 h-3 rounded-full transition-colors duration-500 ${isOnlineSupported && user ? 'bg-emerald-500 shadow-[0_0_10px_#10b981]' : 'bg-red-500'}`} title={isOnlineSupported && user ? "Online Ready" : "Offline / Auth Missing"}></div>
+                    {/* Status Dot */}
+                    <div className={`fixed top-6 left-28 z-50 w-3 h-3 rounded-full transition-colors duration-500 ${isOnlineSupported && user ? 'bg-emerald-500 shadow-[0_0_10px_#10b981]' : 'bg-red-500'}`} title={isOnlineSupported && user ? "Online Ready" : "Offline / Check Auth"}></div>
 
                     <div className="w-full max-w-md flex justify-between mb-4">
                         <button onClick={() => setIsMusicPlaying(!isMusicPlaying)} className={`p-3 rounded-2xl glass-panel text-[10px] font-black uppercase tracking-widest hover:bg-white/10 transition-all ${theme === 'dark' ? 'text-white' : 'text-slate-900 border-slate-300'}`}>{isMusicPlaying ? '🎵 ON' : '🔇 OFF'}</button>
@@ -529,9 +471,19 @@
                     <div className={`w-full max-w-md glass-panel ${themeStyles.cardBg} rounded-[2.5rem] shadow-2xl overflow-hidden transition-all duration-300 relative z-10 ${isWinner || hasOpponentWon ? 'scale-95 opacity-50 blur-sm' : ''}`}>
                         
                         <div className="p-8 text-center border-b border-white/5">
-                            {(gameMode === 'bot' || (gameMode === 'online' && gameState === 'playing')) && <MiniOpponentBoard />}
-                            
-                            {gameState === 'setup' && <h1 className={`text-4xl font-black tracking-[0.3em] mb-6 italic ${themeStyles.textMain}`}>BINGO</h1>}
+                            {gameState === 'setup' ? (
+                                <h1 className={`text-4xl font-black tracking-[0.3em] mb-6 italic ${themeStyles.textMain}`}>BINGO</h1>
+                            ) : (
+                                <div className="mb-4 w-full flex flex-col items-center">
+                                    <div className="flex gap-1 mb-2">
+                                        {BINGO_LETTERS.map((l, i) => (<div key={i} className={`w-5 h-5 flex items-center justify-center rounded-sm text-[8px] font-black transition-all ${i < opponentLines ? 'bg-red-500 text-white' : 'bg-black/20 text-slate-500'}`}>{l}</div>))}
+                                    </div>
+                                    <div className="grid grid-cols-5 gap-1 p-1 rounded-lg bg-black/10">
+                                        {opponentMarked.map((row, r) => row.map((m, c) => (<div key={`${r}-${c}`} className={`w-3.5 h-3.5 rounded-sm border ${m ? themeStyles.botGridMarked : themeStyles.botGridBase}`}></div>)))}
+                                    </div>
+                                    <div className={`text-[8px] font-black mt-1 ${themeStyles.textSub} uppercase tracking-[0.2em]`}>{gameMode === 'bot' ? 'BOT' : 'OPPONENT'}</div>
+                                </div>
+                            )}
                             
                             <div className="flex justify-between gap-2">
                                 {BINGO_LETTERS.map((l, i) => (
@@ -558,11 +510,9 @@
 
                                     {gameMode === 'online' ? (
                                         <div className="space-y-4 animate-pop-in">
-                                            {/* ADDED DEVELOPMENT NOTICE */}
                                             <div className="bg-red-500/10 border border-red-500/30 p-3 rounded-xl text-center">
                                                 <p className="text-red-500 font-black text-[10px] uppercase tracking-widest animate-pulse">Online Mode: Still in Development ⚠️</p>
                                             </div>
-
                                             {onlineStatus === 'idle' ? (
                                                 <div className="space-y-4">
                                                     <button onClick={hostOnline} className={`w-full py-4 rounded-xl font-bold ${themeStyles.buttonPrimary}`}>HOST ROOM</button>
@@ -570,9 +520,6 @@
                                                         <input type="text" placeholder="6-digit code" value={roomCode} onChange={e => setRoomCode(e.target.value.replace(/\D/g, '').slice(0, 6))} className={`flex-1 rounded-xl px-4 text-center font-mono font-bold border-none outline-none ${theme === 'dark' ? 'bg-black/20 text-white placeholder-white/40' : 'bg-slate-200 text-slate-900 placeholder-slate-500'}`}/>
                                                         <button onClick={joinOnline} className="px-6 py-4 bg-emerald-600 rounded-xl font-bold text-white">JOIN</button>
                                                     </div>
-                                                    { !isOnlineSupported && (
-                                                        <p className="text-[10px] text-red-500 text-center font-bold">⚠️ Online mode requires hosting (e.g. Vercel) & Firebase.</p>
-                                                    )}
                                                 </div>
                                             ) : (
                                                 <div className="text-center p-6 bg-white/5 rounded-3xl border border-white/10">
@@ -615,15 +562,6 @@
                                                 </div>
                                             )}
 
-                                            {gameMode === 'friend' && (
-                                                <button onClick={() => setShowCaller(true)} className={`w-full py-3 rounded-xl border-2 border-dashed text-xs font-bold uppercase tracking-widest opacity-80 hover:opacity-100 ${theme === 'dark' ? 'border-indigo-500/50 text-indigo-300' : 'border-rose-400/50 text-rose-500'}`}>OPEN CALLER TOOL 📢</button>
-                                            )}
-                                            
-                                            <div className="text-center">
-                                                <p className={`text-[10px] font-bold uppercase tracking-widest opacity-40 mb-2 ${themeStyles.textSub}`}>New? Check rules before playing!</p>
-                                                <button onClick={() => setShowRules(true)} className={`w-full text-[10px] font-bold uppercase tracking-widest opacity-60 hover:opacity-100 ${themeStyles.textSub}`}>How to Play?</button>
-                                            </div>
-                                            
                                             <button onClick={startGame} disabled={hasErrors} className={`w-full py-5 rounded-2xl text-xl font-black tracking-widest shadow-xl active:scale-95 transition-all ${hasErrors ? 'bg-slate-500/20 text-slate-400 cursor-not-allowed' : themeStyles.buttonPrimary}`}>START GAME</button>
                                         </div>
                                     )}
@@ -635,34 +573,17 @@
                                             <button 
                                                 key={`${rIdx}-${cIdx}`} 
                                                 onClick={() => toggleCell(rIdx, cIdx)}
-                                                // DISABLED ATTRIBUTE ADDED HERE FOR ROBUSTNESS
                                                 disabled={(gameMode === 'online' || gameMode === 'bot') && turn !== (gameMode === 'online' ? playerRole : 'player')}
-                                                className={`relative aspect-square rounded-xl text-xl font-black transition-all border-b-4 active:border-b-0 active:translate-y-1 ${marked[rIdx][cIdx] ? themeStyles.gridMarked + ' scale-95' : themeStyles.gridBase} ${(gameMode === 'online' || gameMode === 'bot') && turn !== (gameMode === 'online' ? playerRole : 'player') && !marked[rIdx][cIdx] ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                                className={`relative aspect-square rounded-xl text-xl font-black transition-all border-b-4 active:border-b-0 active:translate-y-1 ${marked[rIdx][cIdx] ? themeStyles.gridMarked + ' scale-95 shadow-inner' : themeStyles.gridBase} ${(gameMode === 'online' || gameMode === 'bot') && turn !== (gameMode === 'online' ? playerRole : 'player') && !marked[rIdx][cIdx] ? 'opacity-50 cursor-not-allowed' : ''}`}
                                             >
                                                 {cell}
                                                 {marked[rIdx][cIdx] && <span className="absolute inset-0 flex items-center justify-center text-3xl opacity-30 pointer-events-none">✨</span>}
                                             </button>
                                         )))}
                                     </div>
-                                    {/* Bot Trigger Button (Hidden but logic remains) */}
-                                    {gameMode === 'bot' && (
-                                        <button 
-                                            onClick={triggerBotMove}
-                                            disabled={turn === 'player'}
-                                            className="hidden" // Hidden because it's auto-triggered now
-                                        >
-                                            Draw
-                                        </button>
-                                    )}
 
-                                    {/* In-Game Caller for Friend Mode */}
                                     {gameMode === 'friend' && (
-                                        <button 
-                                            onClick={() => setShowCaller(true)} 
-                                            className={`w-full py-3 mb-2 rounded-xl border-2 border-dashed font-bold uppercase tracking-widest ${theme === 'dark' ? 'border-indigo-500/50 text-indigo-300 hover:bg-white/5' : 'border-rose-400/50 text-rose-500 hover:bg-black/5'}`}
-                                        >
-                                            OPEN CALLER TOOL 📢
-                                        </button>
+                                        <button onClick={() => setShowCaller(true)} className={`w-full py-3 mb-2 rounded-xl border-2 border-dashed font-bold uppercase tracking-widest ${theme === 'dark' ? 'border-indigo-500/50 text-indigo-300 hover:bg-white/5' : 'border-rose-400/50 text-rose-500 hover:bg-black/5'}`}>OPEN CALLER TOOL 📢</button>
                                     )}
 
                                     <button onClick={resetGame} className={`w-full py-3 rounded-xl border-2 text-xs font-black tracking-[0.2em] active:scale-95 transition-all opacity-70 hover:opacity-100 ${theme === 'dark' ? 'border-white/10 text-slate-400' : 'border-slate-200 text-slate-500'}`}>QUIT TO MENU</button>
@@ -686,9 +607,7 @@
                                 <h2 className={`text-5xl font-black italic mb-2 tracking-tighter ${isWinner && !hasOpponentWon ? 'text-amber-400' : 'text-red-500'}`}>
                                     {isWinner && !hasOpponentWon ? 'VICTORY!' : 'DEFEAT'}
                                 </h2>
-                                <p className="text-slate-400 mb-8 font-medium">
-                                    {isWinner && !hasOpponentWon ? 'You conquered the board!' : 'The opponent was faster!'}
-                                </p>
+                                <p className="text-slate-400 mb-8 font-medium">{isWinner && !hasOpponentWon ? 'You conquered the board!' : 'The opponent was faster!'}</p>
                                 <button onClick={resetGame} className={`w-full py-4 rounded-2xl font-black text-xl shadow-xl ${themeStyles.buttonPrimary}`}>BACK TO MENU</button>
                             </div>
                         </div>

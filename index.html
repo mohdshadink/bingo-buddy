@@ -56,7 +56,7 @@
         let auth = null;
         let isOnlineSupported = false;
         // Consistent App ID to ensure room paths match on both tabs
-        const appId = 'bingo-buddy-final';
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'bingo-buddy';
 
         try {
             const configToUse = (customFirebaseConfig.apiKey) ? customFirebaseConfig : (typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null);
@@ -203,59 +203,16 @@
                 if (audioRef.current) isMusicPlaying ? audioRef.current.play().catch(()=>{}) : audioRef.current.pause();
             }, [isMusicPlaying]);
 
-            // ONLINE LISTENER - Critical logic fixed here
-            useEffect(() => {
-                if (!isOnlineSupported || !user || !currentRoomId || gameMode !== 'online') return;
-                
-                const roomRef = db.doc(`artifacts/${appId}/public/data/rooms/${currentRoomId}`);
-                
-                const unsubscribe = roomRef.onSnapshot((doc) => {
-                    if (!doc.exists) return;
-                    const data = doc.data();
-                    const currentState = stateRef.current;
-
-                    // Transition to board if guest joined
-                    if (data.status === 'playing' && currentState.gameState !== 'playing') {
-                        setGameState('playing');
-                    }
-                    
-                    // Always sync turn state from DB
-                    if (data.turn) {
-                         setTurn(data.turn);
-                         // Unlock board locally if it's our turn now
-                         if (data.turn === currentState.playerRole) moveLockRef.current = false;
-                    }
-                    
-                    if (data.lastPick) setLastAction(`Opponent picked ${data.lastPick}`);
-
-                    const isHost = currentState.playerRole === 'host';
-                    if (isHost) {
-                        setOpponentMarked(data.guestMarked || Array(5).fill(null).map(() => Array(5).fill(false)));
-                        setOpponentLines(data.guestLines || 0);
-                        // Mark our board if opponent was the one who picked
-                        if (data.lastPickBy === 'guest') syncFromOpponent(data.lastPick);
-                    } else {
-                        setOpponentMarked(data.hostMarked || Array(5).fill(null).map(() => Array(5).fill(false)));
-                        setOpponentLines(data.hostLines || 0);
-                        // Mark our board if opponent was the one who picked
-                        if (data.lastPickBy === 'host') syncFromOpponent(data.lastPick);
-                        if (currentState.onlineStatus === 'hosting') setOnlineStatus('connected');
-                    }
-                }, (err) => {
-                    console.log("Sync error:", err);
-                    setError("Network lag. Still syncing...");
-                });
-
-                // Fixed: Typo fixed from 'unsub' to 'unsubscribe'
-                return () => unsubscribe();
-            }, [user, currentRoomId, gameMode]); 
-
-            useEffect(() => {
-                if (gameState === 'playing' && gameMode === 'bot' && turn === 'bot' && !isWinner && !botWins) {
-                    const timer = setTimeout(triggerBotMove, 1000);
-                    return () => clearTimeout(timer);
+            const calculateLines = (currentMarked) => {
+                let lines = 0; let lineSet = new Set();
+                for (let i = 0; i < 5; i++) {
+                    if (currentMarked[i].every(Boolean)) { lines++; lineSet.add(`row-${i}`); }
+                    if (currentMarked.every(row => row[i])) { lines++; lineSet.add(`col-${i}`); }
                 }
-            }, [turn, gameState, gameMode, isWinner, botWins]);
+                if (currentMarked.every((row, i) => row[i])) { lines++; lineSet.add('d1'); }
+                if (currentMarked.every((row, i) => row[4 - i])) { lines++; lineSet.add('d2'); }
+                return { count: lines, set: lineSet };
+            };
 
             const syncFromOpponent = (val) => {
                 setMarked(prev => {
@@ -273,16 +230,56 @@
                 });
             };
 
-            const calculateLines = (currentMarked) => {
-                let lines = 0; let lineSet = new Set();
-                for (let i = 0; i < 5; i++) {
-                    if (currentMarked[i].every(Boolean)) { lines++; lineSet.add(`row-${i}`); }
-                    if (currentMarked.every(row => row[i])) { lines++; lineSet.add(`col-${i}`); }
+            // ONLINE LISTENER
+            useEffect(() => {
+                if (!isOnlineSupported || !user || !currentRoomId || gameMode !== 'online') return;
+                
+                const roomRef = db.doc(`artifacts/${appId}/public/data/rooms/${currentRoomId}`);
+                
+                const unsubscribe = roomRef.onSnapshot((doc) => {
+                    if (!doc.exists) return;
+                    const data = doc.data();
+                    const currentState = stateRef.current;
+
+                    if (data.status === 'playing' && currentState.gameState !== 'playing') {
+                        setGameState('playing');
+                    }
+                    
+                    if (data.turn) {
+                         setTurn(data.turn);
+                         if (data.turn === currentState.playerRole) moveLockRef.current = false;
+                    }
+                    
+                    if (data.lastPick) setLastAction(`Opponent picked ${data.lastPick}`);
+
+                    const isHost = currentState.playerRole === 'host';
+                    
+                    // DESERIALIZE ARRAYS FROM DB (Firestore can't store nested arrays directly)
+                    if (isHost) {
+                        const gMarked = data.guestMarked ? JSON.parse(data.guestMarked) : Array(5).fill(null).map(() => Array(5).fill(false));
+                        setOpponentMarked(gMarked);
+                        setOpponentLines(data.guestLines || 0);
+                        if (data.lastPickBy === 'guest') syncFromOpponent(data.lastPick);
+                    } else {
+                        const hMarked = data.hostMarked ? JSON.parse(data.hostMarked) : Array(5).fill(null).map(() => Array(5).fill(false));
+                        setOpponentMarked(hMarked);
+                        setOpponentLines(data.hostLines || 0);
+                        if (data.lastPickBy === 'host') syncFromOpponent(data.lastPick);
+                    }
+                }, (err) => {
+                    console.log("Sync error:", err);
+                    setError("Connection issue. Still syncing...");
+                });
+
+                return () => unsubscribe();
+            }, [user, currentRoomId, gameMode]); 
+
+            useEffect(() => {
+                if (gameState === 'playing' && gameMode === 'bot' && turn === 'bot' && !isWinner && !botWins) {
+                    const timer = setTimeout(triggerBotMove, 1000);
+                    return () => clearTimeout(timer);
                 }
-                if (currentMarked.every((row, i) => row[i])) { lines++; lineSet.add('d1'); }
-                if (currentMarked.every((row, i) => row[4 - i])) { lines++; lineSet.add('d2'); }
-                return { count: lines, set: lineSet };
-            };
+            }, [turn, gameState, gameMode, isWinner, botWins]);
 
             const markNumberOnBoard = (targetBoard, targetMarked, number) => {
                 let newMarked = targetMarked.map(row => [...row]);
@@ -371,18 +368,19 @@
                     setCompletedLines(res.set);
                     
                     const nextTurn = playerRole === 'host' ? 'guest' : 'host';
-                    setTurn(nextTurn); // Local switch for speed
+                    setTurn(nextTurn); // Local optimistic flip
 
+                    // SERIALIZE ARRAYS FOR STORAGE (Firestore cannot store nested arrays directly)
                     const update = { 
                         turn: nextTurn, 
                         lastPick: val, 
                         lastPickBy: playerRole,
-                        status: 'playing' // Ensure status is always consistent
+                        status: 'playing' 
                     };
                     if (playerRole === 'host') { 
-                        update.hostMarked = next; update.hostLines = res.count; 
+                        update.hostMarked = JSON.stringify(next); update.hostLines = res.count; 
                     } else { 
-                        update.guestMarked = next; update.guestLines = res.count; 
+                        update.guestMarked = JSON.stringify(next); update.guestLines = res.count; 
                     }
                     
                     try {
@@ -390,7 +388,7 @@
                     } catch (e) {
                          console.error("Update failed:", e);
                          moveLockRef.current = false;
-                         setError("Action failed. Try again.");
+                         setError("Sync failed. Check connection.");
                     }
                 } else if (gameMode === 'bot') {
                     if (turn !== 'player') return;
@@ -412,7 +410,7 @@
             };
 
             const hostOnline = async () => {
-                if (!isOnlineSupported || !user) { alert("Deploy to Vercel/Netlify for Online Mode."); return; }
+                if (!isOnlineSupported || !user) { alert("Deployment to Vercel/Netlify required for Online Mode."); return; }
                 const code = Math.floor(100000 + Math.random() * 900000).toString();
                 setCurrentRoomId(code); setRoomCode(code); setPlayerRole('host'); setOnlineStatus('hosting');
                 await db.doc(`artifacts/${appId}/public/data/rooms/${code}`).set({
@@ -420,7 +418,7 @@
                 });
             };
             const joinOnline = async () => {
-                if (!isOnlineSupported || !user) { alert("Deploy to Vercel/Netlify for Online Mode."); return; }
+                if (!isOnlineSupported || !user) { alert("Deployment to Vercel/Netlify required for Online Mode."); return; }
                 const ref = db.doc(`artifacts/${appId}/public/data/rooms/${roomCode}`);
                 const d = await ref.get();
                 if (d.exists && d.data().status === 'waiting') {
@@ -504,12 +502,13 @@
                                 <div className="space-y-6">
                                     <div className={`flex p-1 rounded-2xl ${theme === 'dark' ? 'bg-black/30' : 'bg-slate-100'}`}>
                                         {['friend', 'bot', 'online'].map(m => (
-                                            <button key={m} onClick={() => setGameMode(m)} className={`flex-1 py-2.5 rounded-xl text-[10px] font-black tracking-widest uppercase transition-all ${gameMode === m ? themeStyles.buttonPrimary : 'text-slate-500'}`}>{m}</button>
+                                            <button key={m} onClick={() => setGameMode(m)} className={`flex-1 py-2.5 rounded-xl text-[10px] font-black tracking-widest uppercase transition-all ${gameMode === m ? themeStyles.buttonPrimary : 'text-slate-50'}`}>{m}</button>
                                         ))}
                                     </div>
 
                                     {gameMode === 'online' ? (
                                         <div className="space-y-4 animate-pop-in">
+                                            {/* ADDED DEVELOPMENT NOTICE */}
                                             <div className="bg-red-500/10 border border-red-500/30 p-3 rounded-xl text-center">
                                                 <p className="text-red-500 font-black text-[10px] uppercase tracking-widest animate-pulse">Online Mode: Still in Development ⚠️</p>
                                             </div>
@@ -549,7 +548,7 @@
                                                                 setBoard(prev => prev.map((row, ri) => row.map((c, ci) => (ri === rIdx && ci === cIdx ? val : c))));
                                                             }}
                                                             placeholder="•"
-                                                            className={`w-full h-full text-center font-black rounded-lg border-2 bg-transparent ${themeStyles.textMain} ${getCellErrors()[rIdx][cIdx] && cell !== '' ? 'border-red-500 text-red-500' : 'border-white/10'} ${setupMode === 'random' ? 'opacity-50' : ''}`}
+                                                            className={`w-full h-full text-center font-black text-xl rounded-lg border-2 bg-transparent ${themeStyles.textMain} ${getCellErrors()[rIdx][cIdx] && cell !== '' ? 'border-red-500 text-red-500' : 'border-white/10'} ${setupMode === 'random' ? 'opacity-50' : ''}`}
                                                         />
                                                     </div>
                                                 )))}
@@ -573,6 +572,7 @@
                                             <button 
                                                 key={`${rIdx}-${cIdx}`} 
                                                 onClick={() => toggleCell(rIdx, cIdx)}
+                                                // DISABLED ATTRIBUTE ADDED HERE FOR ROBUSTNESS
                                                 disabled={(gameMode === 'online' || gameMode === 'bot') && turn !== (gameMode === 'online' ? playerRole : 'player')}
                                                 className={`relative aspect-square rounded-xl text-xl font-black transition-all border-b-4 active:border-b-0 active:translate-y-1 ${marked[rIdx][cIdx] ? themeStyles.gridMarked + ' scale-95 shadow-inner' : themeStyles.gridBase} ${(gameMode === 'online' || gameMode === 'bot') && turn !== (gameMode === 'online' ? playerRole : 'player') && !marked[rIdx][cIdx] ? 'opacity-50 cursor-not-allowed' : ''}`}
                                             >

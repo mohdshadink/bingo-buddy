@@ -42,7 +42,7 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        // --- FIREBASE CONFIGURATION ---
+        // --- FIREBASE CONFIGURATION (YOUR KEYS) ---
         const customFirebaseConfig = {
             apiKey: "AIzaSyDXAQF_cGP1Z0Sg0nQfJNd9lNT9SWvqJy4",
             authDomain: "bingo-buddy-63ceb.firebaseapp.com",
@@ -55,12 +55,12 @@
         let db = null;
         let auth = null;
         let isOnlineSupported = false;
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'bingo-buddy';
 
         try {
-            const configToUse = (customFirebaseConfig.apiKey) ? customFirebaseConfig : (typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null);
-            if (configToUse) {
-                if (!firebase.apps.length) firebase.initializeApp(configToUse);
+            if (customFirebaseConfig.apiKey) {
+                if (!firebase.apps.length) {
+                    firebase.initializeApp(customFirebaseConfig);
+                }
                 db = firebase.firestore();
                 auth = firebase.auth();
                 isOnlineSupported = true;
@@ -190,12 +190,16 @@
             const [showRules, setShowRules] = useState(false);
             const [showCaller, setShowCaller] = useState(false);
 
+            // Initialize board immediately
             const [board, setBoard] = useState(() => createRandomBoard());
             const [marked, setMarked] = useState(Array(5).fill(null).map(() => Array(5).fill(false)));
             const [completedLines, setCompletedLines] = useState(new Set());
+            
+            // Persistent Caller State
             const [calledNumbers, setCalledNumbers] = useState([]);
             const [currentCallerNumber, setCurrentCallerNumber] = useState(null);
 
+            // Bot/Online State
             const [opponentMarked, setOpponentMarked] = useState(Array(5).fill(null).map(() => Array(5).fill(false)));
             const [opponentLines, setOpponentLines] = useState(0);
             const [botBoard, setBotBoard] = useState([]);
@@ -223,12 +227,7 @@
 
             useEffect(() => {
                 if (isOnlineSupported && auth) {
-                    const initAuth = async () => {
-                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                            await auth.signInWithCustomToken(__initial_auth_token).catch(() => auth.signInAnonymously());
-                        } else { await auth.signInAnonymously(); }
-                    };
-                    initAuth();
+                    auth.signInAnonymously().catch(e => console.log("Auth Error", e));
                     const unsubscribe = auth.onAuthStateChanged(setUser);
                     return () => unsubscribe();
                 }
@@ -238,23 +237,19 @@
                 audioRef.current = new Audio(MUSIC_URL);
                 audioRef.current.loop = true;
                 audioRef.current.volume = 0.4;
-                return () => { if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; } };
+                return () => { if (audioRef.current) audioRef.current.pause(); };
             }, []);
 
             useEffect(() => {
-                if (audioRef.current) {
-                    if (isMusicPlaying) {
-                        audioRef.current.play().catch(e => console.log("Audio play prevented:", e));
-                    } else {
-                        audioRef.current.pause();
-                    }
-                }
+                if (audioRef.current) isMusicPlaying ? audioRef.current.play().catch(()=>{}) : audioRef.current.pause();
             }, [isMusicPlaying]);
 
+            // ONLINE LISTENER
             useEffect(() => {
                 if (!isOnlineSupported || !user || !currentRoomId || gameMode !== 'online') return;
                 
-                const roomRef = db.doc(`artifacts/${appId}/public/data/rooms/${currentRoomId}`);
+                // SIMPLIFIED PATH FOR STABILITY: "bingo_rooms"
+                const roomRef = db.collection('bingo_rooms').doc(currentRoomId);
                 
                 const unsubscribe = roomRef.onSnapshot((doc) => {
                     if (!doc.exists) return;
@@ -265,11 +260,10 @@
                         setGameState('playing');
                     }
                     
-                    if (data.turn && data.turn !== currentState.turn) {
+                    if (data.turn) {
                          setTurn(data.turn);
                          if (data.turn === currentState.playerRole) moveLockRef.current = false;
                     }
-                    
                     if (data.lastPick) setLastAction(`Opponent picked ${data.lastPick}`);
 
                     const isHost = currentState.playerRole === 'host';
@@ -284,6 +278,10 @@
                         setOpponentMarked(hMarked);
                         setOpponentLines(data.hostLines || 0);
                         if (data.lastPickBy === 'host') syncFromOpponent(data.lastPick);
+                    }
+                    // Status Check
+                    if (currentState.onlineStatus === 'hosting' && (data.guestMarked || data.hostMarked)) {
+                        setOnlineStatus('connected');
                     }
                 }, (err) => {
                     console.log("Sync error:", err);
@@ -365,26 +363,36 @@
                 let options = [];
                 botBoard.forEach((row, r) => row.forEach((cell, c) => { if (!opponentMarked[r][c]) options.push({r, c, val: cell}); }));
                 if (!options.length) return;
+
                 let pick;
-                if (botDifficulty === 'easy') pick = options[Math.floor(Math.random() * options.length)].val;
-                else {
+                if (botDifficulty === 'easy') {
+                    pick = options[Math.floor(Math.random() * options.length)].val;
+                } else {
                     let best = null; let max = -1;
                     options.forEach(opt => {
-                        let score = 0; const {r, c} = opt; const ls = (cnt) => Math.pow(10, cnt);
-                        let rC = 0; for(let k=0; k<5; k++) if(opponentMarked[r][k]) rC++; score += ls(rC);
-                        let cC = 0; for(let k=0; k<5; k++) if(opponentMarked[k][c]) cC++; score += ls(cC);
-                        if(r===c){let d1=0; for(let k=0; k<5; k++) if(opponentMarked[k][k]) d1++; score += ls(d1);}
-                        if(r+c===4){let d2=0; for(let k=0; k<5; k++) if(opponentMarked[k][4-k]) d2++; score += ls(d2);}
-                        s += Math.random(); if(s > max){max=s; best=opt.val;}
+                        let score = 0; const {r, c} = opt;
+                        const lScore = (count) => Math.pow(10, count);
+                        let rC = 0; for(let k=0; k<5; k++) if(opponentMarked[r][k]) rC++; score += lScore(rC);
+                        let cC = 0; for(let k=0; k<5; k++) if(opponentMarked[k][c]) cC++; score += lScore(cC);
+                        if (r===c) { let d1=0; for(let k=0; k<5; k++) if(opponentMarked[k][k]) d1++; score += lScore(d1); }
+                        if (r+c===4) { let d2=0; for(let k=0; k<5; k++) if(opponentMarked[k][4-k]) d2++; score += lScore(d2); }
+                        score += Math.random();
+                        if (score > max) { max = score; best = opt.val; }
                     });
                     pick = best;
                 }
+
                 setLastAction(`Bot picked ${pick}`);
                 const nextBotMarked = markNumberOnBoard(botBoard, opponentMarked, pick);
                 setOpponentMarked(nextBotMarked);
+                
                 const nextPlayerMarked = markNumberOnBoard(board, marked, pick);
                 setMarked(nextPlayerMarked);
-                if (calculateLines(nextBotMarked).count >= 5) setBotWins(true);
+
+                const botRes = calculateLines(nextBotMarked);
+                setOpponentLines(botRes.count);
+                if (botRes.count >= 5) setBotWins(true);
+                
                 setCompletedLines(calculateLines(nextPlayerMarked).set);
                 setTurn('player');
             };
@@ -409,7 +417,15 @@
                     const update = { turn: playerRole === 'host' ? 'guest' : 'host', lastPick: val, lastPickBy: playerRole };
                     if (playerRole === 'host') { update.hostMarked = JSON.stringify(next); update.hostLines = res.count; }
                     else { update.guestMarked = JSON.stringify(next); update.guestLines = res.count; }
-                    await db.doc(`artifacts/${appId}/public/data/rooms/${currentRoomId}`).update(update);
+                    
+                    try {
+                        // Use consistent collection path
+                        await db.collection('bingo_rooms').doc(currentRoomId).update(update);
+                    } catch (e) {
+                         console.error("Update failed:", e);
+                         moveLockRef.current = false;
+                         setError("Sync failed. Check connection.");
+                    }
                 } else if (gameMode === 'bot') {
                     if (turn !== 'player') return;
                     setLastAction(`You picked ${val}`);
@@ -418,7 +434,10 @@
                     setCompletedLines(calculateLines(nextPlayer).set);
                     const nextBot = markNumberOnBoard(botBoard, opponentMarked, val);
                     setOpponentMarked(nextBot);
-                    if (calculateLines(nextBot).count >= 5) setBotWins(true);
+                    const botRes = calculateLines(nextBot);
+                    setOpponentLines(botRes.count);
+                    
+                    if (botRes.count >= 5) setBotWins(true);
                     setTurn('bot');
                 } else {
                     const next = marked.map((row, ri) => row.map((v, ci) => (ri===r && ci===c ? !v : v)));
@@ -431,19 +450,28 @@
                 if (!isOnlineSupported || !user) { alert("Deployment to Vercel/Netlify required for Online Mode."); return; }
                 const code = Math.floor(100000 + Math.random() * 900000).toString();
                 setCurrentRoomId(code); setRoomCode(code); setPlayerRole('host'); setOnlineStatus('hosting');
-                await db.doc(`artifacts/${appId}/public/data/rooms/${code}`).set({
-                    hostId: user.uid, status: 'waiting', turn: 'host', hostLines: 0, guestLines: 0, lastPick: null
-                });
+                
+                try {
+                    // Use consistent collection path
+                    await db.collection('bingo_rooms').doc(code).set({
+                        hostId: user.uid, status: 'waiting', turn: 'host', hostLines: 0, guestLines: 0, lastPick: null
+                    });
+                } catch(e) { setError("Failed to host: " + e.message); }
             };
+
             const joinOnline = async () => {
                 if (!isOnlineSupported || !user) { alert("Deployment to Vercel/Netlify required for Online Mode."); return; }
-                const ref = db.doc(`artifacts/${appId}/public/data/rooms/${roomCode}`);
-                const d = await ref.get();
-                if (d.exists && d.data().status === 'waiting') {
-                    setCurrentRoomId(roomCode); setPlayerRole('guest'); setOnlineStatus('connected');
-                    await ref.update({ guestId: user.uid, status: 'playing' });
-                    setGameState('playing');
-                } else { setError("Not found or full."); }
+                
+                try {
+                    // Use consistent collection path
+                    const ref = db.collection('bingo_rooms').doc(roomCode);
+                    const d = await ref.get();
+                    if (d.exists && d.data().status === 'waiting') {
+                        setCurrentRoomId(roomCode); setPlayerRole('guest'); setOnlineStatus('connected');
+                        await ref.update({ guestId: user.uid, status: 'playing' });
+                        setGameState('playing');
+                    } else { setError("Code invalid or room full."); }
+                } catch(e) { setError("Join failed: " + e.message); }
             };
 
             const themeStyles = useMemo(() => {
@@ -483,6 +511,9 @@
             return (
                 <div className="min-h-screen flex flex-col items-center p-4 md:p-8 animate-gradient-bg theme-transition relative" style={{ backgroundImage: themeStyles.bgGradient }}>
                     
+                    {/* Status Dot */}
+                    <div className={`fixed top-6 left-28 z-50 w-3 h-3 rounded-full transition-colors duration-500 ${isOnlineSupported && user ? 'bg-emerald-500 shadow-[0_0_10px_#10b981]' : 'bg-red-500'}`} title={isOnlineSupported && user ? "Online Ready" : "Offline / Check Auth"}></div>
+
                     <div className="w-full max-w-md flex justify-between mb-4">
                         <button onClick={() => setIsMusicPlaying(!isMusicPlaying)} className={`p-3 rounded-2xl glass-panel text-[10px] font-black uppercase tracking-widest hover:bg-white/10 transition-all ${theme === 'dark' ? 'text-white' : 'text-slate-900 border-slate-300'}`}>{isMusicPlaying ? '🎵 ON' : '🔇 OFF'}</button>
                         <div className="flex gap-2">
@@ -517,7 +548,7 @@
                                 <div className="space-y-6">
                                     <div className={`flex p-1 rounded-2xl ${theme === 'dark' ? 'bg-black/30' : 'bg-slate-100'}`}>
                                         {['friend', 'bot', 'online'].map(m => (
-                                            <button key={m} onClick={() => setGameMode(m)} className={`flex-1 py-2.5 rounded-xl text-[10px] font-black tracking-widest uppercase transition-all ${gameMode === m ? themeStyles.buttonPrimary : (theme === 'dark' ? 'text-slate-400' : 'text-slate-800 font-bold opacity-60')}`}>{m}</button>
+                                            <button key={m} onClick={() => setGameMode(m)} className={`flex-1 py-2.5 rounded-xl text-[10px] font-black tracking-widest uppercase transition-all ${gameMode === m ? themeStyles.buttonPrimary : (theme === 'dark' ? 'text-slate-400' : 'text-slate-700')}`}>{m}</button>
                                         ))}
                                     </div>
 
@@ -579,6 +610,11 @@
                                                 <button onClick={() => setShowCaller(true)} className={`w-full py-3 rounded-xl border-2 border-dashed text-xs font-bold uppercase tracking-widest opacity-80 hover:opacity-100 ${theme === 'dark' ? 'border-indigo-500/50 text-indigo-300' : 'border-rose-400/50 text-rose-500'}`}>OPEN CALLER TOOL 📢</button>
                                             )}
                                             
+                                            <div className="text-center">
+                                                <p className={`text-[10px] font-bold uppercase tracking-widest opacity-40 mb-2 ${themeStyles.textSub}`}>New? Check rules before playing!</p>
+                                                <button onClick={() => setShowRules(true)} className={`w-full text-[10px] font-bold uppercase tracking-widest opacity-60 hover:opacity-100 ${themeStyles.textSub}`}>How to Play?</button>
+                                            </div>
+                                            
                                             <button onClick={startGame} disabled={hasErrors} className={`w-full py-5 rounded-2xl text-xl font-black tracking-widest shadow-xl active:scale-95 transition-all ${hasErrors ? 'bg-slate-500/20 text-slate-400 cursor-not-allowed' : themeStyles.buttonPrimary}`}>START GAME</button>
                                         </div>
                                     )}
@@ -590,8 +626,9 @@
                                             <button 
                                                 key={`${rIdx}-${cIdx}`} 
                                                 onClick={() => toggleCell(rIdx, cIdx)}
+                                                // DISABLED ATTRIBUTE ADDED HERE FOR ROBUSTNESS
                                                 disabled={(gameMode === 'online' || gameMode === 'bot') && turn !== (gameMode === 'online' ? playerRole : 'player')}
-                                                className={`relative aspect-square rounded-xl text-xl font-black transition-all border-b-4 active:border-b-0 active:translate-y-1 ${marked[rIdx][cIdx] ? themeStyles.gridMarked + ' scale-95' : themeStyles.gridBase} ${(gameMode === 'online' || gameMode === 'bot') && turn !== (gameMode === 'online' ? playerRole : 'player') && !marked[rIdx][cIdx] ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                                className={`relative aspect-square rounded-xl text-xl font-black transition-all border-b-4 active:border-b-0 active:translate-y-1 ${marked[rIdx][cIdx] ? themeStyles.gridMarked + ' scale-95 shadow-inner' : themeStyles.gridBase} ${(gameMode === 'online' || gameMode === 'bot') && turn !== (gameMode === 'online' ? playerRole : 'player') && !marked[rIdx][cIdx] ? 'opacity-50 cursor-not-allowed' : ''}`}
                                             >
                                                 {cell}
                                                 {marked[rIdx][cIdx] && <span className="absolute inset-0 flex items-center justify-center text-3xl opacity-30 pointer-events-none">✨</span>}
@@ -640,7 +677,8 @@
                                 <h2 className={`text-5xl font-black italic mb-2 tracking-tighter ${isWinner && !hasOpponentWon ? 'text-amber-400' : 'text-red-500'}`}>
                                     {isWinner && !hasOpponentWon ? 'VICTORY!' : 'DEFEAT'}
                                 </h2>
-                                <p className="text-slate-400 mb-8 font-medium">{isWinner && !hasOpponentWon ? 'You conquered the board!' : 'The opponent was faster!'}</p>
+                                <p className="text-slate-400 mb-8 font-medium">
+                                    {isWinner && !hasOpponentWon ? 'You conquered the board!' : 'The opponent was faster!'}</p>
                                 <button onClick={resetGame} className={`w-full py-4 rounded-2xl font-black text-xl shadow-xl ${themeStyles.buttonPrimary}`}>BACK TO MENU</button>
                             </div>
                         </div>
